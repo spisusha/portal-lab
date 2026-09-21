@@ -12,10 +12,10 @@
 - [x] GitHub Actions workflow для Pages
 - [x] `npm install` — прошёл, 104 пакета, `package-lock.json` создан
 - [x] `npm run build` — собирается, `dist/` 264 kB js + 8.5 kB css
-- [ ] установка GitHub CLI (`winget install GitHub.cli`) ← ОСТАНОВИЛИСЬ ЗДЕСЬ
-- [ ] `gh auth login` — требует участия человека
-- [ ] `git init`, первый коммит, создание репозитория
-- [ ] первый деплой пустой заготовки
+- [x] установка GitHub CLI — `winget install GitHub.cli`, версия 2.101.0
+- [x] `gh auth login` — аккаунт spisusha
+- [x] `git init`, первый коммит, репозиторий github.com/spisusha/portal-lab
+- [x] деплой на Pages — https://spisusha.github.io/portal-lab/
 
 ## Блок 1 — домен и тесты
 
@@ -50,10 +50,11 @@
 
 - [x] `WorklogScreen` — экран AI Worklog внутри приложения
 - [ ] подставить реальное время и токены в worklog (`/cost`)
-- [x] `README.md`
+- [x] `README.md` — ссылка на живую версию проставлена
 - [ ] скриншот в README
-- [ ] прогон 5 обязательных состояний руками
-- [ ] финальный деплой и проверка ссылки
+- [ ] прогон 5 обязательных состояний руками ← ОСТАНОВИЛИСЬ ЗДЕСЬ
+- [x] деплой и проверка ссылки — 200, ассеты 200, приложение
+      отрисовывается на https://spisusha.github.io/portal-lab/
 
 ## Блок 4 — визуал (день 2)
 

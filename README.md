@@ -6,7 +6,7 @@
 
 Тестовое задание на вакансию AI-first Developer в MOX.
 
-**Живая версия:** _(ссылка появится после первого деплоя)_
+**Живая версия:** https://spisusha.github.io/portal-lab/
 
 ## Что можно сделать за минуту
 
@@ -26,7 +26,7 @@
 Нужен Node.js 20 или новее.
 
 ```sh
-git clone https://github.com/<username>/portal-lab.git
+git clone https://github.com/spisusha/portal-lab.git
 cd portal-lab
 npm install
 npm run dev
@@ -150,8 +150,8 @@ npm test
 
 Дополнительно:
 
-- [ ] `npm test` проходит
-- [ ] собранная версия открывается по опубликованной ссылке
+- [x] `npm test` проходит — 24 теста
+- [x] собранная версия открывается по опубликованной ссылке
 - [ ] сценарий понятен за минуту без объяснений
 
 ## AI Worklog
