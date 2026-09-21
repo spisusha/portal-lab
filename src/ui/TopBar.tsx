@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLab } from '../state/labStore'
 import { SCENARIO_TITLES } from '../domain/reducer'
-import { CYCLE_MINUTES, formatClock, type ScenarioId } from '../domain/types'
+import { CYCLE_MINUTES, currentCycle, formatClock, isActive, type ScenarioId } from '../domain/types'
 import { counted, plural } from './plural'
 
 const SCENARIOS: ScenarioId[] = ['standard', 'critical', 'empty']
@@ -38,13 +38,26 @@ export function TopBar({
   const { state, summary, forecast, dispatch } = useLab()
   const [advancing, setAdvancing] = useState(false)
   const timer = useRef<number | undefined>(undefined)
+  const advancingRef = useRef(false)
 
   useEffect(() => () => window.clearTimeout(timer.current), [])
 
   const nextCycle = () => {
+    if (advancingRef.current || state.shiftStatus === 'COMPLETE') return
+    const pending = state.portals.filter(
+      (portal) => isActive(portal) && portal.decisionCycle !== currentCycle(state),
+    ).length
+    if (pending > 0) {
+      dispatch({ type: 'NEXT_CYCLE' })
+      return
+    }
+    advancingRef.current = true
     dispatch({ type: 'NEXT_CYCLE' })
     setAdvancing(true)
-    timer.current = window.setTimeout(() => setAdvancing(false), 420)
+    timer.current = window.setTimeout(() => {
+      advancingRef.current = false
+      setAdvancing(false)
+    }, 420)
   }
 
   return (
@@ -129,7 +142,7 @@ export function TopBar({
             type="button"
             className="btn btn--primary"
             onClick={nextCycle}
-            disabled={advancing}
+            disabled={advancing || state.shiftStatus === 'COMPLETE'}
             aria-busy={advancing}
           >
             {advancing ? 'Цикл идёт…' : `Следующий цикл · +${CYCLE_MINUTES} мин`}
@@ -173,14 +186,14 @@ function CriticalTally({
         )}
       </svg>
       <span className="tally__text">
-        {critical > 0 ? (
-          <>
-            <strong>{critical}</strong>{' '}
+            {critical > 0 ? (
+            <>
+              <strong>{critical}</strong>{' '}
             {plural(critical, 'критический', 'критических', 'критических')} из{' '}
-            {counted(active, 'открытого', 'открытых', 'открытых')}
-          </>
-        ) : (
-          <>Критических нет · открыто {active}</>
+            {counted(active, 'активного', 'активных', 'активных')}
+            </>
+          ) : (
+          <>Критических нет · активно {active}</>
         )}
       </span>
       {collapsed > 0 && (

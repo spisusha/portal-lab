@@ -10,6 +10,8 @@ import { ChangeFlash } from './ui/ChangeFlash'
 import { ConfirmDialog } from './ui/ConfirmDialog'
 import { Onboarding, useOnboarding } from './ui/Onboarding'
 import { WorklogScreen } from './ui/WorklogScreen'
+import { ShiftComplete } from './ui/ShiftComplete'
+import { currentCycle, isActive } from './domain/types'
 
 /**
  * Экран собран по одному вопросу: «что делать прямо сейчас».
@@ -26,18 +28,23 @@ import { WorklogScreen } from './ui/WorklogScreen'
  * а не человеку.
  */
 export function App() {
-  const { portals, summary, state } = useLab()
+  const { portals, summary, state, dispatch } = useLab()
   const [tab, setTab] = useState<Tab>('lab')
   const [manualId, setManualId] = useState<string | null>(null)
+  const [showFinalLog, setShowFinalLog] = useState(false)
   const intro = useOnboarding()
 
   // Если выбранный портал исчез при смене сценария, показываем самый
   // опасный из активных — камера не должна оставаться пустой.
   const manualExists =
-    manualId !== null && portals.some((item) => item.portal.id === manualId)
+    manualId !== null && portals.some((item) => item.portal.id === manualId && isActive(item.portal))
+  const current = currentCycle(state)
+  const nextUnprocessed = [...portals]
+    .filter((item) => isActive(item.portal) && item.portal.decisionCycle !== current)
+    .sort((a, b) => b.risk.score - a.risk.score)[0]
   const selectedId = manualExists
     ? manualId
-    : (summary.attention[0]?.portal.id ?? portals[0]?.portal.id ?? null)
+    : (nextUnprocessed?.portal.id ?? summary.attention[0]?.portal.id ?? portals.find((item) => isActive(item.portal))?.portal.id ?? null)
 
   // Пока за смену не сделано ни одного решения, рекомендованная кнопка
   // помечена: первый шаг должен быть очевиден и после закрытия вступления.
@@ -50,9 +57,35 @@ export function App() {
   // Действие закрепляет портал в камере. Иначе очередь пересортировывалась
   // сразу после нажатия, камера уезжала на другой портал, и сводка
   // «риск 72 → 60» относилась к тому, кого на экране уже нет.
-  const act = useCallback((portalId: string) => {
-    setManualId(portalId)
+  const act = useCallback((_portalId: string) => {
+    // После успешного решения камера должна перейти к следующему
+    // необработанному порталу. `null` отдаёт выбор доменному порядку риска.
+    setManualId(null)
   }, [])
+
+  const unresolved = portals.filter(
+    (item) => isActive(item.portal) && item.portal.decisionCycle !== current,
+  ).length
+
+  if (state.shiftStatus === 'COMPLETE' && tab === 'lab') {
+    return (
+      <div className="shell">
+        <TopBar tab={tab} onTabChange={setTab} onShowIntro={intro.show} />
+        <main className="deck deck--complete">
+          <ShiftComplete
+            showLog={showFinalLog}
+            onShowLog={() => setShowFinalLog(true)}
+            onRestart={() => {
+              setShowFinalLog(false)
+              setManualId(null)
+              dispatch({ type: 'LOAD_SCENARIO', scenario: state.scenario, confirmed: true })
+            }}
+          />
+          {showFinalLog && <Archive portalId={null} />}
+        </main>
+      </div>
+    )
+  }
 
   return (
     <div className="shell">
@@ -60,6 +93,16 @@ export function App() {
 
       {tab === 'lab' ? (
         <main className="deck">
+          <div className="shift-progress" aria-label="Прогресс смены">
+            <span>Демо-смена · 6 циклов по 15 минут</span>
+            <strong>Цикл {Math.min(current + 1, 6)} из 6</strong>
+            <span>Осталось циклов: {Math.max(0, 6 - current)}</span>
+            {unresolved === 0 && summary.active > 0 && (
+              <span className="shift-progress__ready">
+                Все доступные решения этого цикла приняты. Можно перейти к следующему циклу.
+              </span>
+            )}
+          </div>
           <PortalCamera
             portalId={selectedId}
             onSelect={select}

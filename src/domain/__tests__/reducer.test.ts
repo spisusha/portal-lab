@@ -60,7 +60,7 @@ describe('переходы состояний лаборатории', () => {
     const state = createScenario('critical')
     expect(find(state, 'c-14').minutesToCollapse).toBe(15)
 
-    const after = labReducer(state, { type: 'NEXT_CYCLE' })
+    const after = labReducer(state, { type: 'NEXT_CYCLE', confirmed: true })
     const portal = find(after, 'c-14')
 
     expect(after.clockMinutes).toBe(15)
@@ -73,7 +73,7 @@ describe('переходы состояний лаборатории', () => {
     const state = createScenario('standard')
     const riskBefore = computeRisk(find(state, 'p-07')).score
 
-    const after = labReducer(state, { type: 'NEXT_CYCLE' })
+    const after = labReducer(state, { type: 'NEXT_CYCLE', confirmed: true })
     const portal = find(after, 'p-07')
 
     expect(portal.stability).toBe(61)
@@ -88,7 +88,7 @@ describe('переходы состояний лаборатории', () => {
     expect(find(sent, 'p-07').observerInside).toBe(true)
     expect(find(sent, 'p-07').creaturesConfirmed).toBe(false)
 
-    const reported = labReducer(sent, { type: 'NEXT_CYCLE' })
+    const reported = labReducer(sent, { type: 'NEXT_CYCLE', confirmed: true })
     const portal = find(reported, 'p-07')
 
     expect(portal.observerInside).toBe(false)
@@ -101,11 +101,11 @@ describe('переходы состояний лаборатории', () => {
       type: 'STABILIZE',
       portalId: 'p-19',
     })
-    const reset = labReducer(dirty, { type: 'LOAD_SCENARIO', scenario: 'empty' })
+    const reset = labReducer(dirty, { type: 'LOAD_SCENARIO', scenario: 'empty', confirmed: true })
 
     expect(reset.portals).toHaveLength(0)
     expect(reset.clockMinutes).toBe(0)
-    expect(reset.log).toHaveLength(1)
-    expect(reset.log[0].kind).toBe('system')
+    expect(reset.log).toHaveLength(2)
+    expect(reset.log.every((entry) => entry.kind === 'system' || entry.kind === 'warning')).toBe(true)
   })
 })

@@ -1,5 +1,6 @@
 import { useLab } from '../state/labStore'
 import { ACTION_LABELS } from '../domain/types'
+import { currentCycle } from '../domain/types'
 import { checkAllActions } from '../domain/rules'
 import { recommendAction } from '../domain/recommend'
 import { actionOutcome } from '../domain/consequences'
@@ -27,20 +28,26 @@ export function DecisionBench({
   /** Закрепить портал в камере: после действия очередь пересортируется. */
   onAct: (portalId: string) => void
 }) {
-  const { portals, dispatch } = useLab()
+  const { portals, dispatch, state } = useLab()
   const item = portals.find((p) => p.portal.id === portalId)
 
   if (!item) return null
 
   const { portal } = item
-  const checks = checkAllActions(portal)
+  const checks = checkAllActions(portal, currentCycle(state))
   const recommendation = recommendAction(portal)
+  const decisionTaken = portal.decisionCycle === currentCycle(state)
 
   return (
     <section className="bench" aria-labelledby="bench-title">
       <h2 className="bench__title" id="bench-title">
         Решение по порталу «{portal.name}»
       </h2>
+      {decisionTaken && (
+        <p className="bench__notice">
+          Решение по этому порталу уже принято в текущем цикле. Перейдите к следующему порталу или запустите следующий цикл.
+        </p>
+      )}
 
       <div className="bench__plates">
         {ACTION_ORDER.map((kind) => {
@@ -58,7 +65,7 @@ export function DecisionBench({
               ]
                 .filter(Boolean)
                 .join(' ')}
-              disabled={!check.allowed}
+              disabled={!check.allowed || state.shiftStatus === 'COMPLETE'}
               onClick={() => {
                 onAct(portal.id)
                 dispatch(toLabAction(kind, portal.id))
@@ -73,7 +80,9 @@ export function DecisionBench({
                 </span>
 
                 <span className="plate__outcome">
-                  {check.allowed
+                  {state.shiftStatus === 'COMPLETE'
+                    ? 'Смена завершена. Действия больше недоступны.'
+                    : check.allowed
                     ? actionOutcome(portal, kind)
                     : check.reason}
                 </span>

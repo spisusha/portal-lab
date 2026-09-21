@@ -3,6 +3,8 @@ import {
   ACTION_LABELS,
   STATUS_LABELS,
   formatCountdown,
+  currentCycle,
+  formatClock,
   isActive,
 } from '../domain/types'
 import { riskHeadline } from '../domain/risk'
@@ -34,7 +36,7 @@ export function PortalCamera({
   onAct: (portalId: string) => void
   firstStepPending: boolean
 }) {
-  const { portals, focus, forecast, dispatch } = useLab()
+  const { portals, focus, forecast, dispatch, state } = useLab()
   const item = portals.find((p) => p.portal.id === portalId)
 
   if (!item) {
@@ -57,11 +59,12 @@ export function PortalCamera({
   const { portal, risk } = item
   const recommendation = recommendAction(portal)
   const action = recommendation.action
-  const check = action ? checkAction(portal, action) : null
+  const check = action ? checkAction(portal, action, currentCycle(state)) : null
   const outlook = forecast.outlooks.find((o) => o.portal.id === portal.id)
 
   const focused = focus?.item.portal.id === portal.id
   const urgency = focused ? focus.urgency : risk.rank === 'S' ? 'critical' : 'calm'
+  const decisionTaken = isActive(portal) && portal.decisionCycle === currentCycle(state)
 
   return (
     <section
@@ -115,6 +118,11 @@ export function PortalCamera({
               ? `Ранг ${risk.rank} — ${risk.label} · ${STATUS_LABELS[portal.status]}`
               : STATUS_LABELS[portal.status]}
           </p>
+          {decisionTaken && (
+            <p className="camera__decision">
+              Решение принято · {portal.decisionAtMinutes === null || portal.decisionAtMinutes === undefined ? '' : formatClock(portal.decisionAtMinutes)}
+            </p>
+          )}
         </div>
       </div>
 
@@ -166,6 +174,7 @@ export function PortalCamera({
               type="button"
               className={`btn btn--primary btn--lg${firstStepPending ? ' btn--beacon' : ''}`}
               data-tour="primary"
+              disabled={state.shiftStatus === 'COMPLETE'}
               onClick={() => {
                 onAct(portal.id)
                 dispatch(toLabAction(action, portal.id))
@@ -181,7 +190,9 @@ export function PortalCamera({
         ) : (
           <p className="camera__why camera__why--alone">
             {action
-              ? `Рекомендованное действие «${ACTION_LABELS[action]}» сейчас недоступно: ${check?.reason}`
+              ? state.shiftStatus === 'COMPLETE'
+                ? 'Смена завершена. Действия больше недоступны.'
+                : `Рекомендованное действие «${ACTION_LABELS[action]}» сейчас недоступно: ${check?.reason}`
               : recommendation.text}
           </p>
         )}

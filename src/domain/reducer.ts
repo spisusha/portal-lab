@@ -19,7 +19,14 @@ import type {
   Portal,
   PortalActionKind,
 } from './types'
-import { ACTION_LABELS, CYCLE_MINUTES, isActive } from './types'
+import {
+  ACTION_LABELS,
+  CYCLE_MINUTES,
+  MAX_CYCLES,
+  currentCycle,
+  formatClock,
+  isActive,
+} from './types'
 import { applyStabilize, checkAction } from './rules'
 import { computeRisk } from './risk'
 import { projectPortal } from './cycle'
@@ -80,6 +87,13 @@ function guard(
   portalId: string,
   kind: PortalActionKind,
 ): { portal: Portal } | { blocked: LabState } {
+  if (state.shiftStatus === 'COMPLETE') {
+    return {
+      blocked: withLog(state, [
+        { kind: 'blocked', text: 'Смена завершена. Действия больше недоступны.' },
+      ]),
+    }
+  }
   const portal = findPortal(state, portalId)
   if (!portal) {
     return {
@@ -88,7 +102,7 @@ function guard(
       ]),
     }
   }
-  const check = checkAction(portal, kind)
+  const check = checkAction(portal, kind, currentCycle(state))
   if (!check.allowed) {
     return {
       blocked: withLog(state, [
@@ -106,17 +120,45 @@ function guard(
 export function labReducer(state: LabState, action: LabAction): LabState {
   switch (action.type) {
     case 'LOAD_SCENARIO': {
+      if (
+        !action.confirmed &&
+        (state.decisionCount ?? 0) > 0
+      ) {
+        return {
+          ...state,
+          pendingScenario: action.scenario,
+          pendingConfirm: {
+            action: 'LOAD_SCENARIO',
+            scenario: action.scenario,
+            question: 'Прогресс текущей смены будет сброшен. Загрузить другой демо-сценарий?',
+          },
+        }
+      }
       const fresh = createScenario(action.scenario)
-      return withLog(fresh, [
+      const loaded = withLog(fresh, [
         {
           kind: 'system',
           text: `Загружен набор данных «${SCENARIO_TITLES[action.scenario]}». Смена начата заново.`,
         },
       ])
+      return action.scenario === 'empty' ? completeShift(loaded, 'empty') : loaded
     }
 
     case 'CANCEL_CONFIRM': {
-      return { ...state, pendingConfirm: null }
+      return {
+        ...state,
+        pendingConfirm: null,
+        pendingScenario: null,
+        pendingCycleConfirm: null,
+      }
+    }
+
+    case 'CANCEL_NEXT_CYCLE': {
+      return { ...state, pendingCycleConfirm: null, pendingConfirm: null }
+    }
+
+    case 'CANCEL_SCENARIO': {
+      return { ...state, pendingScenario: null, pendingConfirm: null }
     }
 
     case 'STABILIZE': {
@@ -127,13 +169,14 @@ export function labReducer(state: LabState, action: LabAction): LabState {
       const riskBefore = computeRisk(portal).score
       let next: Portal = applyStabilize(portal)
       const riskAfter = computeRisk(next).score
+      next = acceptDecision(next, state, 'STABILIZE', true)
       next = addHistory(
         next,
         state.clockMinutes,
-        `Стабилизация: стабильность ${portal.stability} → ${next.stability}, энергия ${portal.energy} → ${next.energy}. Риск ${riskBefore} → ${riskAfter}.`,
+        `Решение принято · ${formatClock(state.clockMinutes)}. Стабилизация: стабильность ${portal.stability} → ${next.stability}, энергия ${portal.energy} → ${next.energy}. Риск ${riskBefore} → ${riskAfter}.`,
       )
 
-      return withLog(replacePortal(state, next), [
+      return withLog({ ...replacePortal(state, next), decisionCount: (state.decisionCount ?? 0) + 1 }, [
         {
           kind: 'action',
           portal: next,
@@ -147,12 +190,12 @@ export function labReducer(state: LabState, action: LabAction): LabState {
       if ('blocked' in result) return result.blocked
 
       const next = addHistory(
-        { ...result.portal, status: 'QUESTIONED' },
+        acceptDecision({ ...result.portal, status: 'QUESTIONED' }, state, 'MARK_QUESTIONED'),
         state.clockMinutes,
-        'Портал помечен как «под вопросом»: требуется решение смотрителя.',
+        `Решение принято · ${formatClock(state.clockMinutes)}. Портал помечен как «под вопросом»: требуется решение смотрителя.`,
       )
 
-      return withLog(replacePortal(state, next), [
+      return withLog({ ...replacePortal(state, next), decisionCount: (state.decisionCount ?? 0) + 1 }, [
         {
           kind: 'warning',
           portal: next,
@@ -166,12 +209,12 @@ export function labReducer(state: LabState, action: LabAction): LabState {
       if ('blocked' in result) return result.blocked
 
       const next = addHistory(
-        { ...result.portal, observerInside: true },
+        acceptDecision({ ...result.portal, observerInside: true }, state, 'SEND_OBSERVER'),
         state.clockMinutes,
-        'Наблюдатель направлен внутрь. Отчёт ожидается к следующему циклу.',
+        `Решение принято · ${formatClock(state.clockMinutes)}. Наблюдатель направлен внутрь. Отчёт ожидается к следующему циклу.`,
       )
 
-      return withLog(replacePortal(state, next), [
+      return withLog({ ...replacePortal(state, next), decisionCount: (state.decisionCount ?? 0) + 1 }, [
         {
           kind: 'action',
           portal: next,
@@ -181,11 +224,26 @@ export function labReducer(state: LabState, action: LabAction): LabState {
     }
 
     case 'CLOSE': {
-      const result = guard(state, action.portalId, 'CLOSE')
+      const validConfirmation =
+        action.confirmed &&
+        state.pendingConfirm?.action === 'CLOSE' &&
+        state.pendingConfirm.portalId === action.portalId
+      const result = validConfirmation
+        ? (() => {
+            const portal = findPortal(state, action.portalId)
+            if (!portal) return guard(state, action.portalId, 'CLOSE')
+            // A confirmation belongs to the close request that was already
+            // shown. Do not re-run the one-decision guard for that second
+            // step, otherwise confirming a close would be mistaken for a
+            // duplicate decision.
+            const check = checkAction(portal, 'CLOSE')
+            return check.allowed ? { portal } : guard(state, action.portalId, 'CLOSE')
+          })()
+        : guard(state, action.portalId, 'CLOSE')
       if ('blocked' in result) return result.blocked
       const portal = result.portal
 
-      const check = checkAction(portal, 'CLOSE')
+      const check = checkAction(portal, 'CLOSE', currentCycle(state))
       // Опасное закрытие требует второго шага: сначала вопрос, потом действие.
       if (check.requiresConfirm && !action.confirmed) {
         return {
@@ -208,24 +266,95 @@ export function labReducer(state: LabState, action: LabAction): LabState {
       const suffix = notes.length > 0 ? ` (${notes.join('; ')})` : ''
 
       const next = addHistory(
-        { ...portal, status: 'CLOSED', observerInside: false },
+        acceptDecision(
+          {
+            ...portal,
+            status: 'CLOSED',
+            observerInside: false,
+            creaturesLost: portal.creaturesInside,
+          },
+          state,
+          'CLOSE',
+        ),
         state.clockMinutes,
-        `Портал закрыт${suffix}.`,
+        `Решение принято · ${formatClock(state.clockMinutes)}. Портал закрыт${suffix}.`,
       )
 
-      return withLog({ ...replacePortal(state, next), pendingConfirm: null }, [
+      const closed = withLog({ ...replacePortal(state, next), pendingConfirm: null, decisionCount: (state.decisionCount ?? 0) + 1 }, [
         {
           kind: notes.length > 0 ? 'warning' : 'action',
           portal: next,
           text: `Портал закрыт${suffix}.`,
         },
       ])
+      return finalizeIfNeeded(closed, 'empty')
     }
 
     case 'NEXT_CYCLE': {
-      return advanceCycle(state)
+      if (state.shiftStatus === 'COMPLETE') return state
+      const pending = state.portals.filter(
+        (portal) => isActive(portal) && portal.decisionCycle !== currentCycle(state),
+      ).length
+      if (pending > 0 && !action.confirmed) {
+        return {
+          ...state,
+          pendingConfirm: {
+            action: 'NEXT_CYCLE',
+            question: `Для ${pending} ${pending === 1 ? 'портала' : 'порталов'} решение не принято. Всё равно перейти к следующему циклу?`,
+          },
+          pendingCycleConfirm: pending,
+        }
+      }
+      return advanceCycle({ ...state, pendingConfirm: null, pendingCycleConfirm: null })
     }
   }
+}
+
+function acceptDecision(
+  portal: Portal,
+  state: LabState,
+  _kind: PortalActionKind,
+  stabilized = false,
+): Portal {
+  return {
+    ...portal,
+    decisionCycle: currentCycle(state),
+    decisionAtMinutes: state.clockMinutes,
+    stabilizedEver: portal.stabilizedEver === true || stabilized,
+  }
+}
+
+function completeShift(
+  state: LabState,
+  reason: 'cycles' | 'empty',
+  unresolvedAtEnd?: number,
+): LabState {
+  if (state.shiftStatus === 'COMPLETE') return state
+  const finished = {
+    ...state,
+    shiftStatus: 'COMPLETE' as const,
+    finishedAtMinutes: state.clockMinutes,
+    pendingConfirm: null,
+    pendingCycleConfirm: null,
+    unresolvedAtEnd:
+      unresolvedAtEnd ??
+      state.portals.filter(
+        (portal) => isActive(portal) && portal.decisionCycle !== currentCycle(state),
+      ).length,
+  }
+  return withLog(finished, [
+    {
+      kind: reason === 'cycles' ? 'system' : 'warning',
+      text:
+        reason === 'cycles'
+          ? `Демо-смена завершена после ${MAX_CYCLES} циклов.`
+          : 'Демо-смена завершена досрочно: открытых порталов не осталось.',
+    },
+  ])
+}
+
+function finalizeIfNeeded(state: LabState, reason: 'empty'): LabState {
+  return state.portals.some(isActive) ? state : completeShift(state, reason)
 }
 
 /**
@@ -246,7 +375,12 @@ function advanceCycle(state: LabState): LabState {
     if (!isActive(portal)) return portal
 
     const projected = projectPortal(portal)
-    let next: Portal = { ...projected, history: portal.history }
+    let next: Portal = {
+      ...projected,
+      history: portal.history,
+      decisionCycle: null,
+      decisionAtMinutes: null,
+    }
 
     // Отчёт наблюдателя: сравниваем то, что показывали приборы, с тем,
     // что он увидел своими глазами.
@@ -273,6 +407,7 @@ function advanceCycle(state: LabState): LabState {
 
     if (projected.status === 'COLLAPSED') {
       next = addHistory(next, clockMinutes, 'Время вышло: портал схлопнулся.')
+      next = { ...next, creaturesLost: next.creaturesInside }
       drafts.push({
         kind: 'critical',
         portal: next,
@@ -286,11 +421,31 @@ function advanceCycle(state: LabState): LabState {
     return next
   })
 
-  const advanced: LabState = { ...state, portals, clockMinutes }
-  return withLog(advanced, [
+  const advanced: LabState = {
+    ...state,
+    portals,
+    clockMinutes,
+    pendingConfirm: null,
+    pendingCycleConfirm: null,
+    decisionCount: state.decisionCount ?? 0,
+    observerReturns: (state.observerReturns ?? 0) + state.portals.filter((portal) => portal.observerInside).length,
+  }
+  const withCycleLog = withLog(advanced, [
     { kind: 'system', text: `Цикл наблюдения завершён (+${CYCLE_MINUTES} мин).` },
     ...drafts,
   ])
+  if (clockMinutes >= MAX_CYCLES * CYCLE_MINUTES) {
+    const unresolvedAtEnd = portals.reduce(
+      (count, portal, index) =>
+        isActive(portal) &&
+        state.portals[index].decisionCycle !== currentCycle(state)
+          ? count + 1
+          : count,
+      0,
+    )
+    return completeShift(withCycleLog, 'cycles', unresolvedAtEnd)
+  }
+  return finalizeIfNeeded(withCycleLog, 'empty')
 }
 
 export const SCENARIO_TITLES: Record<LabState['scenario'], string> = {

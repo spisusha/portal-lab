@@ -27,6 +27,23 @@ export function ConfirmDialog() {
 
   if (!pending) return null
 
+  const confirm = () => {
+    if (pending.action === 'CLOSE' && pending.portalId) {
+      dispatch({ type: 'CLOSE', portalId: pending.portalId, confirmed: true })
+    } else if (pending.action === 'NEXT_CYCLE') {
+      dispatch({ type: 'NEXT_CYCLE', confirmed: true })
+    } else if (pending.action === 'LOAD_SCENARIO' && pending.scenario) {
+      dispatch({ type: 'LOAD_SCENARIO', scenario: pending.scenario, confirmed: true })
+    }
+  }
+
+  const title =
+    pending.action === 'NEXT_CYCLE'
+      ? 'Нужное подтверждение'
+      : pending.action === 'LOAD_SCENARIO'
+        ? 'Сбросить прогресс?'
+        : 'Требуется подтверждение'
+
   return (
     <div className="overlay" role="presentation">
       <div
@@ -37,23 +54,19 @@ export function ConfirmDialog() {
         tabIndex={-1}
         ref={dialogRef}
       >
-        <h2 className="dialog__title" id="confirm-title">
-          Требуется подтверждение
-        </h2>
+        <h2 className="dialog__title" id="confirm-title">{title}</h2>
         <p>{pending.question}</p>
         <div className="dialog__buttons">
           <button
             type="button"
             className="btn btn--danger"
-            onClick={() =>
-              dispatch({
-                type: 'CLOSE',
-                portalId: pending.portalId,
-                confirmed: true,
-              })
-            }
+            onClick={confirm}
           >
-            Да, закрыть портал
+            {pending.action === 'CLOSE'
+              ? 'Да, закрыть портал'
+              : pending.action === 'NEXT_CYCLE'
+                ? 'Да, перейти к циклу'
+                : 'Да, сбросить и загрузить'}
           </button>
           <button
             type="button"

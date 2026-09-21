@@ -42,7 +42,15 @@ export function applyStabilize(portal: Portal): Portal {
 export function checkAction(
   portal: Portal,
   kind: PortalActionKind,
+  cycle?: number,
 ): ActionCheck {
+  if (cycle !== undefined && portal.decisionCycle === cycle) {
+    return {
+      allowed: false,
+      reason:
+        'Решение по этому порталу уже принято в текущем цикле. Перейдите к следующему порталу или запустите следующий цикл.',
+    }
+  }
   // Терминальные статусы запрещают вообще всё.
   if (!isActive(portal)) {
     const status = STATUS_LABELS[portal.status].toLowerCase()
@@ -117,11 +125,12 @@ export function checkAction(
 /** Удобная обёртка: проверить сразу все действия для портала. */
 export function checkAllActions(
   portal: Portal,
+  cycle?: number,
 ): Record<PortalActionKind, ActionCheck> {
   return {
-    STABILIZE: checkAction(portal, 'STABILIZE'),
-    SEND_OBSERVER: checkAction(portal, 'SEND_OBSERVER'),
-    CLOSE: checkAction(portal, 'CLOSE'),
-    MARK_QUESTIONED: checkAction(portal, 'MARK_QUESTIONED'),
+    STABILIZE: checkAction(portal, 'STABILIZE', cycle),
+    SEND_OBSERVER: checkAction(portal, 'SEND_OBSERVER', cycle),
+    CLOSE: checkAction(portal, 'CLOSE', cycle),
+    MARK_QUESTIONED: checkAction(portal, 'MARK_QUESTIONED', cycle),
   }
 }

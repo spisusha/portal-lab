@@ -7,7 +7,7 @@
  */
 
 import type { LabState, Portal } from './types'
-import { isActive } from './types'
+import { currentCycle, isActive } from './types'
 import type { RiskBreakdown } from './risk'
 import { computeRisk, isCriticalRank } from './risk'
 
@@ -31,6 +31,20 @@ export interface LabSummary {
   creaturesInside: number
   /** Наблюдатели, находящиеся внутри порталов прямо сейчас. */
   observersInside: number
+  /** Активные существа в безопасных рангах B и ниже. */
+  safeCreatures: number
+  /** Активные существа в опасных рангах A и S. */
+  threatenedCreatures: number
+  /** Существа, потерянные при терминальном исходе портала. */
+  lostCreatures: number
+  /** Порталы, стабилизированные хотя бы раз. */
+  stabilized: number
+  /** Принятые основные решения. */
+  decisions: number
+  /** Наблюдатели, вернувшиеся с отчётом. */
+  observerReturns: number
+  /** Активные порталы, по которым решение ещё не принято в текущем цикле. */
+  unresolved: number
   /** Активные порталы по убыванию риска — чем заняться в первую очередь. */
   attention: PortalWithRisk[]
 }
@@ -45,6 +59,12 @@ export function buildSummary(state: LabState): LabSummary {
   }))
 
   const activeOnes = items.filter((item) => isActive(item.portal))
+  const safeCreatures = activeOnes
+    .filter((item) => item.risk.rank !== 'A' && item.risk.rank !== 'S')
+    .reduce((sum, item) => sum + item.portal.creaturesInside, 0)
+  const threatenedCreatures = activeOnes
+    .filter((item) => item.risk.rank === 'A' || item.risk.rank === 'S')
+    .reduce((sum, item) => sum + item.portal.creaturesInside, 0)
 
   const attention = [...activeOnes]
     .sort((a, b) => {
@@ -68,7 +88,80 @@ export function buildSummary(state: LabState): LabSummary {
     ),
     observersInside: activeOnes.filter((item) => item.portal.observerInside)
       .length,
+    safeCreatures,
+    threatenedCreatures,
+    lostCreatures: state.portals.reduce(
+      (sum, portal) => sum + (portal.creaturesLost ?? 0),
+      0,
+    ),
+    stabilized: state.portals.filter((portal) => portal.stabilizedEver).length,
+    decisions: state.decisionCount ?? 0,
+    observerReturns: state.observerReturns ?? 0,
+    unresolved:
+      state.unresolvedAtEnd ??
+      activeOnes.filter((item) => item.portal.decisionCycle !== currentCycle(state)).length,
     attention,
+  }
+}
+
+export type ShiftOutcome = 'excellent' | 'controlled' | 'losses'
+
+export interface ShiftSummary {
+  durationMinutes: number
+  cycles: number
+  startedPortals: number
+  remainingOpen: number
+  stabilized: number
+  closed: number
+  collapsed: number
+  critical: number
+  questioned: number
+  observersReturned: number
+  safeCreatures: number
+  threatenedCreatures: number
+  lostCreatures: number
+  decisions: number
+  unresolved: number
+  outcome: ShiftOutcome
+  explanation: string
+}
+
+export function buildShiftSummary(state: LabState): ShiftSummary {
+  const summary = buildSummary(state)
+  const cycles = Math.floor((state.finishedAtMinutes ?? state.clockMinutes) / 15)
+  const unresolved = state.unresolvedAtEnd ?? summary.unresolved
+  const outcome: ShiftOutcome =
+    summary.collapsed > 0 || summary.lostCreatures > 0
+      ? 'losses'
+      : summary.critical === 0 && unresolved === 0
+        ? 'excellent'
+        : 'controlled'
+
+  const explanation =
+    outcome === 'excellent'
+      ? 'Ни один портал не схлопнулся, существа не потеряны, критических порталов не осталось.'
+      : outcome === 'losses'
+        ? `Есть потери: схлопнулось порталов — ${summary.collapsed}, потеряно существ — ${summary.lostCreatures}.`
+        : `Существа не потеряны, но остались опасные или нерешённые порталы: критических — ${summary.critical}, без решения — ${unresolved}.`
+
+  return {
+    durationMinutes: state.finishedAtMinutes ?? state.clockMinutes,
+    cycles,
+    startedPortals: state.initialPortalCount ?? state.portals.length,
+    remainingOpen: summary.active,
+    stabilized: summary.stabilized,
+    closed: summary.closed,
+    collapsed: summary.collapsed,
+    critical: summary.critical,
+    questioned: summary.questioned,
+    observersReturned: summary.observerReturns,
+    safeCreatures: summary.safeCreatures,
+    threatenedCreatures: summary.threatenedCreatures,
+    lostCreatures: summary.lostCreatures,
+    decisions: summary.decisions,
+    unresolved,
+    outcome,
+    explanation,
   }
 }
 

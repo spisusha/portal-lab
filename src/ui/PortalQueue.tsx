@@ -1,5 +1,5 @@
 import { useLab } from '../state/labStore'
-import { STATUS_LABELS, formatCountdown, isActive } from '../domain/types'
+import { STATUS_LABELS, currentCycle, formatClock, formatCountdown, isActive } from '../domain/types'
 import type { PortalWithRisk } from '../domain/summary'
 import { WorldCrest } from './WorldScene'
 
@@ -21,13 +21,15 @@ export function PortalQueue({
   selectedId: string | null
   onSelect: (portalId: string) => void
 }) {
-  const { portals, dispatch } = useLab()
+  const { portals, dispatch, state } = useLab()
 
-  if (portals.length === 0) {
+  const activePortals = portals.filter((item) => isActive(item.portal))
+
+  if (activePortals.length === 0) {
     return (
       <section className="queue" aria-labelledby="queue-title">
         <h2 className="queue__title" id="queue-title">
-          Очередь порталов
+          Очередь порталов — 0
         </h2>
         <div className="queue__empty">
           <p className="queue__empty-title">Очередь пуста</p>
@@ -49,17 +51,17 @@ export function PortalQueue({
     )
   }
 
-  const ordered = [...portals].sort(byUrgency)
-  const activeCount = portals.filter((item) => isActive(item.portal)).length
+  const ordered = [...activePortals].sort(byUrgency)
+  const activeCount = activePortals.length
 
   return (
     <section className="queue" aria-labelledby="queue-title">
       <h2 className="queue__title" id="queue-title">
-        Очередь порталов — {portals.length}
+        Очередь порталов — {activeCount}
       </h2>
       <p className="queue__hint">
         {activeCount > 0
-          ? 'Самые опасные сверху. Выберите портал, чтобы открыть его в камере.'
+          ? 'Открытые и помеченные «под вопросом» порталы. Самые опасные сверху.'
           : 'Активных порталов не осталось — все врата в терминальном статусе.'}
       </p>
 
@@ -71,6 +73,7 @@ export function PortalQueue({
               place={index + 1}
               selected={item.portal.id === selectedId}
               onSelect={onSelect}
+              cycle={currentCycle(state)}
             />
           </li>
         ))}
@@ -93,11 +96,13 @@ function Slot({
   place,
   selected,
   onSelect,
+  cycle,
 }: {
   item: PortalWithRisk
   place: number
   selected: boolean
   onSelect: (portalId: string) => void
+  cycle: number
 }) {
   const { portal, risk } = item
   const terminal = !isActive(portal)
@@ -153,6 +158,11 @@ function Slot({
         )}
         {portal.status === 'QUESTIONED' && (
           <span className="slot__flag slot__flag--calm">под вопросом</span>
+        )}
+        {portal.decisionCycle === cycle && portal.decisionAtMinutes !== null && portal.decisionAtMinutes !== undefined && (
+          <span className="slot__flag slot__flag--calm">
+            решение принято · {formatClock(portal.decisionAtMinutes)}
+          </span>
         )}
       </span>
 

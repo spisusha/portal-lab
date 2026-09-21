@@ -22,6 +22,8 @@ import { labReducer } from '../domain/reducer'
 import { createInitialState } from '../domain/seed'
 import {
   buildSummary,
+  buildShiftSummary,
+  type ShiftSummary,
   withRisk,
   type LabSummary,
   type PortalWithRisk,
@@ -68,6 +70,8 @@ interface LabContextValue {
   forecast: CycleForecast
   /** Что изменилось последним действием. null — ещё ничего не нажимали. */
   change: LabChange | null
+  shiftSummary: ShiftSummary
+  lastAction: LabAction['type'] | null
 }
 
 const LabContext = createContext<LabContextValue | null>(null)
@@ -93,6 +97,8 @@ export function LabProvider({ children }: { children: ReactNode }) {
         previous && lastAction
           ? { step, action: lastAction, portals: diffStates(previous, state) }
           : null,
+      shiftSummary: buildShiftSummary(state),
+      lastAction,
     }
   }, [tracked])
 

@@ -12,7 +12,7 @@ export function LabStatus() {
   const { summary } = useLab()
 
   const cells = [
-    { label: 'открыто', value: summary.active, alarm: false },
+    { label: 'открыто', value: summary.open, alarm: false },
     { label: 'критических', value: summary.critical, alarm: summary.critical > 0 },
     { label: 'под вопросом', value: summary.questioned, alarm: false },
     { label: 'закрыто', value: summary.closed, alarm: false },

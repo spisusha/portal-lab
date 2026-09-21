@@ -42,6 +42,10 @@ function makePortal(draft: PortalDraft): Portal {
     status: 'OPEN',
     observerInside: false,
     history: [{ atMinutes: 0, text: draft.registered }],
+    decisionCycle: null,
+    decisionAtMinutes: null,
+    stabilizedEver: false,
+    creaturesLost: 0,
   }
 }
 
@@ -165,6 +169,14 @@ export function createScenario(scenario: ScenarioId): LabState {
     clockMinutes: 0,
     scenario,
     pendingConfirm: null,
+    pendingCycleConfirm: null,
+    pendingScenario: null,
+    shiftStatus: 'ACTIVE',
+    finishedAtMinutes: null,
+    decisionCount: 0,
+    observerReturns: 0,
+    initialPortalCount: SCENARIO_DRAFTS[scenario].length,
+    unresolvedAtEnd: null,
   }
 }
 
