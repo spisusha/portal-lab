@@ -67,8 +67,8 @@ export function TopBar({
         <div className="topbar__names">
           <h1 className="topbar__title">Лаборатория нестабильных порталов</h1>
           <p className="topbar__goal">
-            Пост смотрителя. Задача смены — не допустить неконтролируемого
-            схлопывания порталов.
+            Исследовательский пост. Сохраняйте ценные проходы и защищайте
+            лабораторию и существ от неконтролируемого схлопывания.
           </p>
         </div>
       </div>
@@ -85,7 +85,8 @@ export function TopBar({
         </p>
 
         <CriticalTally
-          critical={summary.critical}
+          dangerous={summary.critical}
+          critical={summary.sRank}
           active={summary.active}
           collapsed={summary.collapsed}
         />
@@ -133,21 +134,30 @@ export function TopBar({
         </nav>
 
         {/* Прогноз стоит вплотную к кнопке: время не двигают вслепую. */}
-        <div className={`cycle cycle--${forecast.tone}`} data-tour="cycle">
-          <p className="cycle__forecast">
-            <span className="cycle__forecast-label">Через цикл</span>
-            {forecast.headline}
-          </p>
-          <button
-            type="button"
-            className="btn btn--primary"
-            onClick={nextCycle}
-            disabled={advancing || state.shiftStatus === 'COMPLETE'}
-            aria-busy={advancing}
-          >
-            {advancing ? 'Цикл идёт…' : `Следующий цикл · +${CYCLE_MINUTES} мин`}
-          </button>
-        </div>
+        {state.shiftStatus === 'COMPLETE' ? (
+          <div className="cycle cycle--calm cycle--complete" data-tour="cycle">
+            <p className="cycle__forecast">
+              <span className="cycle__forecast-label">Смена завершена</span>
+              Итоговый отчёт готов: решения больше не принимаются.
+            </p>
+          </div>
+        ) : (
+          <div className={`cycle cycle--${forecast.tone}`} data-tour="cycle">
+            <p className="cycle__forecast">
+              <span className="cycle__forecast-label">Через цикл</span>
+              {forecast.headline}
+            </p>
+            <button
+              type="button"
+              className="btn btn--primary"
+              onClick={nextCycle}
+              disabled={advancing}
+              aria-busy={advancing}
+            >
+              {advancing ? 'Цикл идёт…' : `Следующий цикл · +${CYCLE_MINUTES} мин`}
+            </button>
+          </div>
+        )}
       </div>
     </header>
   )
@@ -159,20 +169,31 @@ export function TopBar({
  * словом и снабжена знаком: одного красного цвета мало.
  */
 function CriticalTally({
+  dangerous,
   critical,
   active,
   collapsed,
 }: {
+  dangerous: number
   critical: number
   active: number
   collapsed: number
 }) {
-  const tone = critical > 0 ? 'alarm' : 'clear'
+  const tone = critical > 0 ? 'alarm' : dangerous > 0 ? 'warning' : 'clear'
 
   return (
-    <div className={`tally tally--${tone}`}>
+    <div
+      className={`tally tally--${tone}`}
+      aria-label={
+        critical > 0
+          ? `${critical} критических из ${active} активных`
+          : dangerous > 0
+            ? `${dangerous} опасный из ${active} активных`
+            : `Опасных нет, активно ${active}`
+      }
+    >
       <svg className="tally__mark" viewBox="0 0 24 24" aria-hidden="true">
-        {critical > 0 ? (
+        {critical > 0 || dangerous > 0 ? (
           <>
             <path d="M12 2.5 L22 20 L2 20 Z" />
             <path d="M12 9 L12 14" />
@@ -186,15 +207,21 @@ function CriticalTally({
         )}
       </svg>
       <span className="tally__text">
-            {critical > 0 ? (
+          {critical > 0 ? (
             <>
               <strong>{critical}</strong>{' '}
-            {plural(critical, 'критический', 'критических', 'критических')} из{' '}
-            {counted(active, 'активного', 'активных', 'активных')}
+              {plural(critical, 'критический', 'критических', 'критических')} из{' '}
+              {counted(active, 'активного', 'активных', 'активных')}
+            </>
+          ) : dangerous > 0 ? (
+            <>
+              <strong>{dangerous}</strong>{' '}
+              {plural(dangerous, 'опасный', 'опасных', 'опасных')} из{' '}
+              {counted(active, 'активного', 'активных', 'активных')}
             </>
           ) : (
-          <>Критических нет · активно {active}</>
-        )}
+            <>Опасных нет · активно {active}</>
+          )}
       </span>
       {collapsed > 0 && (
         <span className="tally__lost">схлопнулось {collapsed}</span>

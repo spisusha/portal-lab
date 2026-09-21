@@ -39,7 +39,7 @@ export function DecisionBench({
   const decisionTaken = portal.decisionCycle === currentCycle(state)
 
   return (
-    <section className="bench" aria-labelledby="bench-title">
+    <section className="bench" aria-labelledby="bench-title" data-tour="bench">
       <h2 className="bench__title" id="bench-title">
         Решение по порталу «{portal.name}»
       </h2>

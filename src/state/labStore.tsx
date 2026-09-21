@@ -46,7 +46,9 @@ function trackingReducer(tracked: Tracked, action: LabAction): Tracked {
   const next = labReducer(tracked.state, action)
   return {
     state: next,
-    previous: tracked.state,
+    // Перезапуск/смена сценария создаёт новую смену, а не превращает
+    // терминальные порталы старой в открытые. Поэтому для него нет flash-diff.
+    previous: action.type === 'LOAD_SCENARIO' ? null : tracked.state,
     step: tracked.step + 1,
     lastAction: action.type,
   }

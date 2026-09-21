@@ -27,6 +27,8 @@ export interface LabSummary {
   collapsed: number
   /** Активные порталы ранга A или S. */
   critical: number
+  /** Активные порталы именно ранга S — критические по терминологии интерфейса. */
+  sRank: number
   /** Существа, оставшиеся внутри активных порталов. */
   creaturesInside: number
   /** Наблюдатели, находящиеся внутри порталов прямо сейчас. */
@@ -82,6 +84,7 @@ export function buildSummary(state: LabState): LabSummary {
     closed: state.portals.filter((p) => p.status === 'CLOSED').length,
     collapsed: state.portals.filter((p) => p.status === 'COLLAPSED').length,
     critical: activeOnes.filter((item) => isCriticalRank(item.risk.rank)).length,
+    sRank: activeOnes.filter((item) => item.risk.rank === 'S').length,
     creaturesInside: activeOnes.reduce(
       (sum, item) => sum + item.portal.creaturesInside,
       0,
@@ -133,7 +136,7 @@ export function buildShiftSummary(state: LabState): ShiftSummary {
   const outcome: ShiftOutcome =
     summary.collapsed > 0 || summary.lostCreatures > 0
       ? 'losses'
-      : summary.critical === 0 && unresolved === 0
+      : summary.sRank === 0 && unresolved === 0
         ? 'excellent'
         : 'controlled'
 
@@ -142,7 +145,7 @@ export function buildShiftSummary(state: LabState): ShiftSummary {
       ? 'Ни один портал не схлопнулся, существа не потеряны, критических порталов не осталось.'
       : outcome === 'losses'
         ? `Есть потери: схлопнулось порталов — ${summary.collapsed}, потеряно существ — ${summary.lostCreatures}.`
-        : `Существа не потеряны, но остались опасные или нерешённые порталы: критических — ${summary.critical}, без решения — ${unresolved}.`
+        : `Существа не потеряны, но остались опасные или нерешённые порталы: критических — ${summary.sRank}, без решения — ${unresolved}.`
 
   return {
     durationMinutes: state.finishedAtMinutes ?? state.clockMinutes,
@@ -152,7 +155,7 @@ export function buildShiftSummary(state: LabState): ShiftSummary {
     stabilized: summary.stabilized,
     closed: summary.closed,
     collapsed: summary.collapsed,
-    critical: summary.critical,
+    critical: summary.sRank,
     questioned: summary.questioned,
     observersReturned: summary.observerReturns,
     safeCreatures: summary.safeCreatures,

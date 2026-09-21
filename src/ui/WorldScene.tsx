@@ -12,7 +12,13 @@ import { worldArt } from './worldArt'
  * своих пропорций, и при обычном центрировании `slice` срезает именно землю
  * с силуэтами, оставляя пустое небо — так первая версия и выглядела.
  */
-export function WorldScene({ world }: { world: string }) {
+export function WorldScene({
+  world,
+  backgroundImage,
+}: {
+  world: string
+  backgroundImage?: string
+}) {
   const art = worldArt(world)
   const uid = useId().replace(/:/g, '')
   const skyId = `sky-${uid}`
@@ -37,11 +43,36 @@ export function WorldScene({ world }: { world: string }) {
         </radialGradient>
       </defs>
 
-      <rect width="160" height="100" fill={`url(#${skyId})`} />
-      <rect width="160" height="100" fill={`url(#${glowId})`} />
+      {backgroundImage && (
+        <image
+          className="scene__image"
+          href={backgroundImage}
+          x="0"
+          y="0"
+          width="160"
+          height="100"
+          preserveAspectRatio="xMidYMid slice"
+        />
+      )}
+      <rect
+        width="160"
+        height="100"
+        fill={`url(#${skyId})`}
+        opacity={backgroundImage ? 0.18 : 1}
+      />
+      <rect
+        width="160"
+        height="100"
+        fill={`url(#${glowId})`}
+        opacity={backgroundImage ? 0.28 : 1}
+      />
 
-      <path d={art.far} fill={art.sky[0]} opacity="0.85" />
-      <path d={art.near} fill="#05070a" opacity="0.92" />
+      {!backgroundImage && (
+        <>
+          <path d={art.far} fill={art.sky[0]} opacity="0.85" />
+          <path d={art.near} fill="#05070a" opacity="0.92" />
+        </>
+      )}
 
       {art.marks?.map((mark, index) => (
         <circle

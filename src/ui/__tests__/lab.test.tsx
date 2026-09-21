@@ -40,15 +40,22 @@ describe('первый запуск', () => {
     renderApp()
 
     expect(screen.getByRole('dialog')).toBeTruthy()
-    expect(screen.getByText(/Вы — смотритель ночной смены/)).toBeTruthy()
+    expect(screen.getByText(/Вы — смотритель лаборатории/)).toBeTruthy()
+    expect(screen.getByText(/нейтральные живые обитатели/)).toBeTruthy()
 
-    await user.click(screen.getByRole('button', { name: 'Дальше' }))
-    expect(screen.getByText(/Опасный портал уже выбран/)).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Далее' }))
+    expect(screen.getByText(/Сначала прочитайте состояние/)).toBeTruthy()
+    expect(screen.getByText(/стабильность, энергию, время и существ/)).toBeTruthy()
 
-    await user.click(screen.getByRole('button', { name: 'Дальше' }))
-    expect(screen.getByText(/Первое действие — эта кнопка/)).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Далее' }))
+    expect(screen.getByText(/Одно решение за цикл/)).toBeTruthy()
+    expect(screen.getByText(/рекомендация помогает, но не командует/)).toBeTruthy()
 
-    await user.click(screen.getByRole('button', { name: 'Заступить на смену' }))
+    await user.click(screen.getByRole('button', { name: 'Далее' }))
+    expect(screen.getByText(/Шесть циклов до итога/)).toBeTruthy()
+    expect(screen.getByText(/избежать аварий и уберечь существ/)).toBeTruthy()
+
+    await user.click(screen.getByRole('button', { name: 'Начать смену' }))
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
@@ -71,7 +78,7 @@ describe('первый запуск', () => {
     await skipIntro(user)
 
     expect(
-      screen.getByText(/не допустить неконтролируемого\s+схлопывания/i),
+      screen.getByText(/Сохраните ценные порталы и не допустите аварий/i),
     ).toBeTruthy()
   })
 })
@@ -182,6 +189,27 @@ describe('ход времени', () => {
 })
 
 describe('клавиатура', () => {
+  it('удерживает Tab внутри onboarding и возвращает фокус после закрытия', async () => {
+    localStorage.setItem('portal-lab:onboarded', '1')
+    const user = userEvent.setup()
+    renderApp()
+
+    const opener = screen.getByRole('button', { name: 'Как это работает' })
+    opener.focus()
+    await user.click(opener)
+
+    const dialog = screen.getByRole('dialog')
+    const skip = within(dialog).getByRole('button', { name: 'Пропустить' })
+    const next = within(dialog).getByRole('button', { name: 'Далее' })
+    next.focus()
+    await user.tab()
+    expect(document.activeElement).toBe(skip)
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.activeElement).toBe(opener)
+  })
+
   it('до главных органов управления можно дойти табом', async () => {
     const user = userEvent.setup()
     renderApp()
@@ -235,7 +263,7 @@ describe('пустая лаборатория', () => {
 
     await user.selectOptions(screen.getByLabelText('Демо-сценарий'), 'empty')
 
-    expect(screen.getByText(/Смена завершена/)).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Смена завершена' })).toBeTruthy()
     expect(screen.getByText(/досрочно/)).toBeTruthy()
 
     await user.click(screen.getByRole('button', { name: 'Начать смену заново' }))
@@ -297,11 +325,48 @@ describe('полный путь решения', () => {
 
     expect(screen.queryByRole('alertdialog')).toBeNull()
     expect(screen.getByRole('status').textContent).toContain('Закрыт')
-    expect(screen.getByText(/Критических нет · активно 4/)).toBeTruthy()
+    expect(screen.getByText(/Опасных нет · активно 4/)).toBeTruthy()
   })
 })
 
 describe('прогноз и служебные разделы', () => {
+  it('не называет A-ранг критическим в штатном сценарии', async () => {
+    const user = userEvent.setup()
+    renderApp()
+    await skipIntro(user)
+
+    expect(screen.getByLabelText('1 опасный из 5 активных')).toBeTruthy()
+    const status = screen.getByRole('region', { name: 'Состояние лаборатории' })
+    expect(status.textContent).toContain('0критических')
+  })
+
+  it('после завершения показывает состояние смены вместо прогноза и кнопки', async () => {
+    const user = userEvent.setup()
+    renderApp()
+    await skipIntro(user)
+    await user.selectOptions(screen.getByLabelText('Демо-сценарий'), 'empty')
+
+    expect(screen.getAllByText('Смена завершена').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: /Следующий цикл/ })).toBeNull()
+    expect(screen.queryByText('Через цикл')).toBeNull()
+  })
+
+  it('перезапуск не показывает ложное изменение «Схлопнулся → Открыт»', async () => {
+    const user = userEvent.setup()
+    renderApp()
+    await skipIntro(user)
+    await user.selectOptions(screen.getByLabelText('Демо-сценарий'), 'critical')
+    await user.click(screen.getByRole('button', { name: /Следующий цикл/ }))
+    await user.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', {
+        name: /перейти к циклу/,
+      }),
+    )
+    await user.selectOptions(screen.getByLabelText('Демо-сценарий'), 'standard')
+
+    expect(screen.queryByText(/Схлопнулся.*Открыт/)).toBeNull()
+  })
+
   it('до цикла предупреждает, какой портал станет опаснее', async () => {
     const user = userEvent.setup()
     renderApp()

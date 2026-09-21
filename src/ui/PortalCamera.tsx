@@ -68,7 +68,7 @@ export function PortalCamera({
 
   return (
     <section
-      className={`camera camera--${urgency} camera--rank-${risk.rank}`}
+      className={`camera camera--${urgency} camera--rank-${risk.rank}${portal.id === 'p-19' ? ' camera--featured' : ''}`}
       aria-labelledby="camera-name"
       data-tour="camera"
     >
@@ -102,7 +102,14 @@ export function PortalCamera({
 
       <div className="camera__glass">
         <div className="camera__scene" aria-hidden="true">
-          <WorldScene world={portal.world} />
+          <WorldScene
+            world={portal.world}
+            backgroundImage={
+              portal.id === 'p-19'
+                ? '/portal-lab/assets/portals/hollow-star.webp'
+                : undefined
+            }
+          />
         </div>
         <div className="camera__sweep" aria-hidden="true" />
 

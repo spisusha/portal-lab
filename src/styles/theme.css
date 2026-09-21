@@ -325,6 +325,12 @@ input {
   color: var(--crimson);
 }
 
+.tally--warning {
+  border-color: var(--amber-line);
+  background: var(--amber-wash);
+  color: var(--amber);
+}
+
 .tally--alarm .tally__text strong {
   font-size: 16px;
 }
@@ -600,6 +606,32 @@ input {
 
 .camera__scene .scene {
   height: 100%;
+}
+
+.scene__image {
+  opacity: 0.94;
+  filter: saturate(0.92) contrast(1.04) brightness(0.86);
+}
+
+/* Один пробный премиальный мир: растровая сцена остаётся именно за
+   существующим кольцом и типографикой, а не превращает камеру в баннер. */
+.camera--featured .camera__scene {
+  opacity: 1;
+}
+
+.camera--featured .camera__scene::after {
+  background:
+    linear-gradient(to top, rgba(2, 4, 6, 0.94), transparent 52%),
+    radial-gradient(
+      120% 110% at 50% 48%,
+      transparent 22%,
+      rgba(2, 4, 6, 0.34) 62%,
+      rgba(2, 4, 6, 0.9) 100%
+    );
+}
+
+.camera--featured .gauge {
+  filter: drop-shadow(0 0 18px rgba(244, 131, 74, 0.2));
 }
 
 /* Луч сканера: один медленный проход, единственное движение в окне. */
@@ -2316,6 +2348,10 @@ input {
 .shift-progress strong {
   color: var(--bone);
   font-size: 14px;
+}
+
+.shift-progress__goal {
+  color: var(--bone);
 }
 
 .shift-progress__ready {

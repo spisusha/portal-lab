@@ -56,36 +56,44 @@ interface Step {
 }
 
 /**
- * Три шага вместо трёх экранов текста: роль и цель, потом указатель
- * на реальную часть интерфейса, потом первое действие.
+ * Четыре коротких шага: роль и смысл мира, показатели живого портала,
+ * решения и завершение смены. Три последних шага указывают на настоящие
+ * элементы интерфейса, а не пересказывают абстрактную схему.
  *
  * Прежнее вступление объясняло словами то, что можно показать пальцем,
  * и после его закрытия человек всё равно не знал, куда смотреть.
  */
 const STEPS: Step[] = [
   {
-    title: 'Вы — смотритель ночной смены',
+    title: 'Вы — смотритель лаборатории',
     text:
-      'В лаборатории открыты порталы в другие миры. Каждый теряет стабильность ' +
-      'и однажды схлопывается. Схлопывание — провал смены, особенно если внутри ' +
-      'остались существа. Не допустить его — ваша работа.',
+      'Лаборатория удерживает проходы в другие миры для исследований. Сохраните ' +
+      'ценные порталы и не допускайте аварий: существа внутри — нейтральные ' +
+      'живые обитатели, а не противники.',
   },
   {
-    title: 'Опасный портал уже выбран',
+    title: 'Сначала прочитайте состояние',
     text:
-      'Камера показывает самый опасный портал смены и объясняет, почему именно ' +
-      'его. Ранг E–S, риск от 0 до 100 и главная угроза видны сразу — искать ' +
-      'по списку не нужно.',
+      'Смотрите на стабильность, энергию, время и существ внутри. Риск 0–100 и ' +
+      'ранги S / A / B показывают: критично, опасно или нужно держать под контролем.',
     target: '[data-tour="camera"]',
   },
   {
-    title: 'Первое действие — эта кнопка',
+    title: 'Одно решение за цикл',
     text:
-      'Под камерой стоит одно рекомендованное действие: приложение объясняет, ' +
-      `что оно изменит. Когда решение принято — двигайте время кнопкой ` +
-      `«Следующий цикл» (+${CYCLE_MINUTES} мин). Прогноз рядом с ней ` +
-      'заранее говорит, что случится.',
-    target: '[data-tour="primary"]',
+      'Стабилизируйте, назначьте наблюдателя, пометьте «под вопросом» для запроса ' +
+      'дополнительных данных или контролируемо закройте портал. На один портал — ' +
+      'одно действие за цикл; рекомендация помогает, но не командует. Безнадёжный ' +
+      'портал безопаснее закрыть, чем ждать аварийного схлопывания.',
+    target: '[data-tour="bench"]',
+  },
+  {
+    title: 'Шесть циклов до итога',
+    text:
+      `Запускайте следующий цикл (+${CYCLE_MINUTES} мин): после перехода состояние ` +
+      'порталов меняется. После шестого цикла появится итоговый отчёт. Хороший ' +
+      'результат — сохранить ценные порталы, избежать аварий и уберечь существ.',
+    target: '[data-tour="cycle"]',
   },
 ]
 
@@ -100,6 +108,7 @@ export function Onboarding({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState(0)
   const [spot, setSpot] = useState<Spot | null>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
+  const previousFocus = useRef<HTMLElement | null>(null)
 
   const current = STEPS[step]
   const last = step === STEPS.length - 1
@@ -107,12 +116,34 @@ export function Onboarding({ onClose }: { onClose: () => void }) {
   // Фокус уводим в подсказку, чтобы Esc закрывал её откуда угодно,
   // а клавиатурная навигация не осталась на фоне.
   useEffect(() => {
+    previousFocus.current = document.activeElement as HTMLElement | null
     dialogRef.current?.focus()
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose()
+      if (event.key !== 'Tab' || !dialogRef.current) return
+
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), [href], [tabindex]:not([tabindex="-1"])',
+        ),
+      )
+      const first = focusable[0]
+      const last = focusable.at(-1)
+      if (!first || !last) return
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
     }
     document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      previousFocus.current?.focus()
+    }
   }, [onClose])
 
   // Подсветка меряется по живому элементу: если разметка изменится,
@@ -162,17 +193,18 @@ export function Onboarding({ onClose }: { onClose: () => void }) {
       role="dialog"
       aria-modal="true"
       aria-labelledby="intro-title"
+      aria-describedby="intro-text"
       tabIndex={-1}
       ref={dialogRef}
       style={spot ? cardPosition(spot) : undefined}
     >
       <p className="tour__counter">
-        Шаг {step + 1} из {STEPS.length}
+        {step + 1} / {STEPS.length}
       </p>
       <h2 className="tour__title" id="intro-title">
         {current.title}
       </h2>
-      <p className="tour__text">{current.text}</p>
+      <p className="tour__text" id="intro-text">{current.text}</p>
 
       <div className="tour__dots" aria-hidden="true">
         {STEPS.map((item, index) => (
@@ -201,7 +233,7 @@ export function Onboarding({ onClose }: { onClose: () => void }) {
           className="btn btn--primary"
           onClick={() => (last ? onClose() : setStep((s) => s + 1))}
         >
-          {last ? 'Заступить на смену' : 'Дальше'}
+          {last ? 'Начать смену' : 'Далее'}
         </button>
       </div>
     </div>
@@ -242,9 +274,10 @@ function cardPosition(spot: Spot): React.CSSProperties {
   const viewportH = typeof window === 'undefined' ? 800 : window.innerHeight
   const viewportW = typeof window === 'undefined' ? 1200 : window.innerWidth
 
+  const CARD_HEIGHT = 300
   const below = spot.top + spot.height + GAP
-  const fitsBelow = below + 230 < viewportH
-  const top = fitsBelow ? below : Math.max(GAP, spot.top - 230 - GAP)
+  const fitsBelow = below + CARD_HEIGHT < viewportH
+  const top = fitsBelow ? below : Math.max(GAP, spot.top - CARD_HEIGHT - GAP)
 
   const wanted = spot.left + spot.width / 2 - CARD / 2
   const left = Math.min(Math.max(GAP, wanted), Math.max(GAP, viewportW - CARD - GAP))

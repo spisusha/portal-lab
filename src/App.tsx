@@ -94,7 +94,9 @@ export function App() {
       {tab === 'lab' ? (
         <main className="deck">
           <div className="shift-progress" aria-label="Прогресс смены">
-            <span>Демо-смена · 6 циклов по 15 минут</span>
+            <span className="shift-progress__goal">
+              Сохраните ценные порталы и не допустите аварий
+            </span>
             <strong>Цикл {Math.min(current + 1, 6)} из 6</strong>
             <span>Осталось циклов: {Math.max(0, 6 - current)}</span>
             {unresolved === 0 && summary.active > 0 && (
