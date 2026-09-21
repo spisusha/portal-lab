@@ -10,8 +10,10 @@ export default defineConfig({
   plugins: [react()],
   base: '/portal-lab/',
   test: {
-    // Домен — чистый TypeScript без DOM, поэтому jsdom не нужен.
+    // Домен — чистый TypeScript без DOM, поэтому по умолчанию jsdom не нужен:
+    // он медленнее и скрывал бы случайную зависимость логики от браузера.
+    // UI-тесты включают jsdom поштучно строкой `@vitest-environment jsdom`.
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.{ts,tsx}'],
   },
 })

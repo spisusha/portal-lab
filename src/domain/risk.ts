@@ -76,6 +76,26 @@ const RANK_THRESHOLDS: Array<{ min: number; rank: RiskRank }> = [
   { min: 0, rank: 'E' },
 ]
 
+/**
+ * Шкала рангов для легенды в интерфейсе — от безобидного к критическому.
+ * Границы берутся из тех же порогов, по которым считается ранг: легенда
+ * не имеет права разойтись с формулой, поэтому она выводится, а не набита
+ * руками в компоненте.
+ */
+export const RANK_SCALE: Array<{
+  rank: RiskRank
+  label: string
+  min: number
+  max: number
+}> = [...RANK_THRESHOLDS]
+  .sort((a, b) => a.min - b.min)
+  .map((item, index, all) => ({
+    rank: item.rank,
+    label: RANK_LABELS[item.rank],
+    min: item.min,
+    max: index + 1 < all.length ? all[index + 1].min - 1 : 100,
+  }))
+
 export function rankForScore(score: number): RiskRank {
   const found = RANK_THRESHOLDS.find((t) => score >= t.min)
   return found ? found.rank : 'E'
@@ -163,3 +183,27 @@ export function computeRisk(portal: Portal): RiskBreakdown {
 /** Текстовая запись формулы — показывается в интерфейсе и в README. */
 export const RISK_FORMULA_TEXT =
   'риск = 0.35 × (100 − стабильность) + 0.30 × энергия + 0.25 × нехватка времени + 0.10 × существа внутри'
+
+/** Фактор, давший наибольший вклад в риск. null — если риск неприменим. */
+export function dominantPart(risk: RiskBreakdown): RiskPart | null {
+  if (!risk.applicable || risk.parts.length === 0) return null
+  return risk.parts.reduce((top, part) =>
+    part.contribution > top.contribution ? part : top,
+  )
+}
+
+/**
+ * Короткое человеческое объяснение риска — одна фраза вместо таблицы.
+ *
+ * Показывается до раскрытия подробных вычислений: сначала человек понимает,
+ * что не так, и только если захочет — смотрит арифметику. Текст собирается
+ * здесь, а не в компоненте, потому что опирается на веса формулы.
+ */
+export function riskHeadline(risk: RiskBreakdown): string {
+  if (!risk.applicable) {
+    return 'Портал в терминальном статусе — риск к нему больше не считается.'
+  }
+  const top = dominantPart(risk)
+  if (!top) return `Риск ${risk.score} из 100.`
+  return `Больше всего риска даёт «${top.title.toLowerCase()}»: ${top.explanation}.`
+}

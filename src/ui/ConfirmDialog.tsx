@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { useLab } from '../state/labStore'
 
 /**
@@ -5,17 +6,40 @@ import { useLab } from '../state/labStore'
  *
  * ТЗ отдельно требует: нельзя закрыть портал с существами внутри
  * «без предупреждения». Поэтому такое закрытие — всегда два шага.
+ *
+ * Диалог забирает фокус и закрывается по Esc: модальное окно, из которого
+ * нельзя выйти с клавиатуры, — ловушка.
  */
 export function ConfirmDialog() {
   const { state, dispatch } = useLab()
   const pending = state.pendingConfirm
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!pending) return
+    dialogRef.current?.focus()
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') dispatch({ type: 'CANCEL_CONFIRM' })
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [pending, dispatch])
 
   if (!pending) return null
 
   return (
-    <div className="overlay" role="dialog" aria-modal="true">
-      <div className="dialog">
-        <div className="dialog__title">Требуется подтверждение</div>
+    <div className="overlay" role="presentation">
+      <div
+        className="dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="confirm-title"
+        tabIndex={-1}
+        ref={dialogRef}
+      >
+        <h2 className="dialog__title" id="confirm-title">
+          Требуется подтверждение
+        </h2>
         <p>{pending.question}</p>
         <div className="dialog__buttons">
           <button

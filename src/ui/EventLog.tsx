@@ -5,6 +5,10 @@ import { formatClock } from '../domain/types'
  * Журнал событий: что произошло, с каким порталом и когда.
  * Отклонённые действия тоже попадают сюда — по ним видно, что ограничения
  * действительно сработали, а не просто спрятали кнопку.
+ *
+ * Свежие записи добавляются сверху и коротко подсвечиваются при появлении:
+ * иначе после действия неясно, изменилось ли что-нибудь. Подсветка
+ * выключается через prefers-reduced-motion.
  */
 export function EventLog() {
   const { state } = useLab()
@@ -13,11 +17,11 @@ export function EventLog() {
     <section className="panel">
       <h2 className="panel__title">Журнал событий — {state.log.length}</h2>
       {state.log.length === 0 ? (
-        <p className="portal-row__world">Событий пока нет.</p>
+        <p className="muted">Событий пока нет.</p>
       ) : (
-        <div className="log">
+        <ul className="log">
           {state.log.map((entry) => (
-            <div key={entry.id} className={`log__row log__row--${entry.kind}`}>
+            <li key={entry.id} className={`log__row log__row--${entry.kind}`}>
               <span className="log__time">{formatClock(entry.atMinutes)}</span>
               <span className="log__text">
                 {entry.portalName && (
@@ -25,9 +29,9 @@ export function EventLog() {
                 )}
                 {entry.text}
               </span>
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </section>
   )

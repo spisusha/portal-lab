@@ -1,23 +1,30 @@
 import type { RiskBreakdown } from '../domain/risk'
 
 /**
- * Значок ранга опасности. Ранг продублирован в title и в подписи рядом:
- * шкала E–S должна читаться без легенды.
+ * Значок ранга опасности.
+ *
+ * Буква — самостоятельный носитель смысла: ранг читается, даже если цвет
+ * не различается. Полное значение продублировано в title и в aria-label,
+ * чтобы шкала E–S не требовала легенды под рукой.
  */
 export function RankBadge({ risk }: { risk: RiskBreakdown }) {
   if (!risk.applicable) {
     return (
-      <div className="rank rank--muted" title="Риск снят: портал неактивен">
+      <span
+        className="rank rank--muted"
+        title="Риск снят: портал неактивен"
+        aria-label="Риск снят, портал неактивен"
+      >
         —
-      </div>
+      </span>
     )
   }
+
+  const full = `Ранг ${risk.rank} — ${risk.label}, риск ${risk.score} из 100`
+
   return (
-    <div
-      className={`rank rank--${risk.rank}`}
-      title={`Ранг ${risk.rank} — ${risk.label}, риск ${risk.score} из 100`}
-    >
+    <span className={`rank rank--${risk.rank}`} title={full} aria-label={full}>
       {risk.rank}
-    </div>
+    </span>
   )
 }

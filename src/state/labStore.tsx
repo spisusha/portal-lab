@@ -16,6 +16,7 @@ import {
 import { labReducer } from '../domain/reducer'
 import { createInitialState } from '../domain/seed'
 import { buildSummary, withRisk, type LabSummary, type PortalWithRisk } from '../domain/summary'
+import { buildFocus, type FocusSituation } from '../domain/focus'
 import type { LabAction, LabState } from '../domain/types'
 
 interface LabContextValue {
@@ -23,6 +24,8 @@ interface LabContextValue {
   dispatch: Dispatch<LabAction>
   summary: LabSummary
   portals: PortalWithRisk[]
+  /** Что требует решения прямо сейчас. null — активных порталов нет. */
+  focus: FocusSituation | null
 }
 
 const LabContext = createContext<LabContextValue | null>(null)
@@ -36,6 +39,7 @@ export function LabProvider({ children }: { children: ReactNode }) {
       dispatch,
       summary: buildSummary(state),
       portals: withRisk(state.portals),
+      focus: buildFocus(state),
     }),
     [state],
   )

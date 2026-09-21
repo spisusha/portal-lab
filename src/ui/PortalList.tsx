@@ -2,11 +2,15 @@ import { useLab } from '../state/labStore'
 import { STATUS_LABELS, formatCountdown, isActive } from '../domain/types'
 import type { PortalWithRisk } from '../domain/summary'
 import { RankBadge } from './RankBadge'
+import { WorldCrest } from './WorldScene'
 
 /**
  * Список порталов. Показывает все поля, которые требует ТЗ: название,
  * мир назначения, энергию, стабильность, время до схлопывания, число существ
  * и статус — плюс рассчитанный ранг риска.
+ *
+ * Знак мира слева нужен не для красоты: девять миров различаются силуэтом
+ * быстрее, чем чтением названия.
  */
 export function PortalList({
   selectedId,
@@ -44,14 +48,17 @@ export function PortalList({
   return (
     <section className="panel">
       <h2 className="panel__title">Порталы — {portals.length}</h2>
-      {portals.map((item) => (
-        <PortalRow
-          key={item.portal.id}
-          item={item}
-          selected={item.portal.id === selectedId}
-          onSelect={onSelect}
-        />
-      ))}
+      <ul className="portal-list">
+        {portals.map((item) => (
+          <li key={item.portal.id}>
+            <PortalRow
+              item={item}
+              selected={item.portal.id === selectedId}
+              onSelect={onSelect}
+            />
+          </li>
+        ))}
+      </ul>
     </section>
   )
 }
@@ -74,6 +81,7 @@ function PortalRow({
   return (
     <button
       type="button"
+      aria-pressed={selected}
       className={[
         'portal-row',
         selected ? 'portal-row--selected' : '',
@@ -84,9 +92,12 @@ function PortalRow({
       style={{ borderLeftColor: rankColor }}
       onClick={() => onSelect(portal.id)}
     >
-      <RankBadge risk={risk} />
+      <span className="portal-row__art">
+        <WorldCrest world={portal.world} />
+        <RankBadge risk={risk} />
+      </span>
 
-      <span>
+      <span className="portal-row__main">
         <span className="portal-row__name">{portal.name}</span>
         <span className="portal-row__world"> · {portal.world}</span>
         <span className="portal-row__metrics">
@@ -102,9 +113,10 @@ function PortalRow({
       </span>
 
       <span className="portal-row__status">
-        {STATUS_LABELS[portal.status]}
-        <br />
-        {risk.applicable ? `риск ${risk.score}` : '—'}
+        <span className="portal-row__state">{STATUS_LABELS[portal.status]}</span>
+        <span className="portal-row__score">
+          {risk.applicable ? `риск ${risk.score}` : '—'}
+        </span>
       </span>
     </button>
   )
