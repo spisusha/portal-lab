@@ -40,13 +40,13 @@ describe('первый запуск', () => {
     renderApp()
 
     expect(screen.getByRole('dialog')).toBeTruthy()
-    expect(screen.getByText(/Вы — смотритель лаборатории/)).toBeTruthy()
+    expect(screen.getByText(/Вы — смотритель ночной смены/)).toBeTruthy()
 
     await user.click(screen.getByRole('button', { name: 'Дальше' }))
-    expect(screen.getByText(/Цикл работы/)).toBeTruthy()
+    expect(screen.getByText(/Опасный портал уже выбран/)).toBeTruthy()
 
     await user.click(screen.getByRole('button', { name: 'Дальше' }))
-    expect(screen.getByText(/не допустить схлопывания/i)).toBeTruthy()
+    expect(screen.getByText(/Первое действие — эта кнопка/)).toBeTruthy()
 
     await user.click(screen.getByRole('button', { name: 'Заступить на смену' }))
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -76,14 +76,14 @@ describe('первый запуск', () => {
   })
 })
 
-describe('блок «Требует решения сейчас»', () => {
+describe('центральная камера портала', () => {
   it('сам выбирает самый опасный портал и объясняет выбор', async () => {
     const user = userEvent.setup()
     renderApp()
     await skipIntro(user)
 
-    const focus = screen.getByLabelText<HTMLElement>('Требует решения сейчас', {
-      selector: 'section',
+    const focus = screen.getByRole('region', {
+      name: 'Врата №19 — Полая звезда',
     })
 
     // В штатной смене самый опасный — «Полая звезда», риск 72 (ранг A).
@@ -96,18 +96,23 @@ describe('блок «Требует решения сейчас»', () => {
     renderApp()
     await skipIntro(user)
 
-    const focus = screen.getByLabelText<HTMLElement>('Требует решения сейчас', {
-      selector: 'section',
+    const focus = screen.getByRole('region', {
+      name: 'Врата №19 — Полая звезда',
     })
-    expect(within(focus).getByText(/риск 72 из 100/)).toBeTruthy()
+    expect(within(focus).getByRole('img', { name: /Риск 72 из 100/ })).toBeTruthy()
 
     await user.click(within(focus).getByRole('button', { name: 'Стабилизировать' }))
 
     // После стабилизации риск падает 72 → 60, и это видно в том же блоке.
-    const after = screen.getByLabelText<HTMLElement>('Требует решения сейчас', {
-      selector: 'section',
+    const after = screen.getByRole('region', {
+      name: 'Врата №19 — Полая звезда',
     })
-    expect(within(after).getByText(/риск 60 из 100/)).toBeTruthy()
+    expect(within(after).getByRole('img', { name: /Риск 60 из 100/ })).toBeTruthy()
+
+    // Результат виден сразу, без поиска записи в журнале.
+    const feedback = screen.getByRole('status')
+    expect(within(feedback).getByText(/Риск 72/)).toBeTruthy()
+    expect(within(feedback).getByText(/Стабильность 30/)).toBeTruthy()
 
     // И событие попало в журнал.
     expect(
@@ -123,7 +128,7 @@ describe('запреты объясняются до нажатия', () => {
     await skipIntro(user)
 
     await user.selectOptions(
-      screen.getByLabelText('Смена'),
+      screen.getByLabelText('Демо-сценарий'),
       'critical',
     )
 
@@ -155,7 +160,7 @@ describe('закрытие портала с существами внутри',
 
     expect(screen.queryByRole('alertdialog')).toBeNull()
     // Портал остался открытым: в сводке по-прежнему пять активных.
-    expect(screen.getByText('Порталы — 5')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Очередь порталов — 5' })).toBeTruthy()
   })
 })
 
@@ -165,13 +170,13 @@ describe('ход времени', () => {
     renderApp()
     await skipIntro(user)
 
-    expect(screen.getByText('Смена 08:00')).toBeTruthy()
+    expect(screen.getByLabelText('Смена 08:00')).toBeTruthy()
 
     await user.click(
       screen.getByRole('button', { name: /Следующий цикл/ }),
     )
 
-    expect(screen.getByText('Смена 08:15')).toBeTruthy()
+    expect(screen.getByLabelText('Смена 08:15')).toBeTruthy()
     expect(screen.getByText(/Цикл наблюдения завершён/)).toBeTruthy()
   })
 })
@@ -228,14 +233,100 @@ describe('пустая лаборатория', () => {
     renderApp()
     await skipIntro(user)
 
-    await user.selectOptions(screen.getByLabelText('Смена'), 'empty')
+    await user.selectOptions(screen.getByLabelText('Демо-сценарий'), 'empty')
 
     expect(screen.getByText('В лаборатории нет активных порталов')).toBeTruthy()
-    expect(screen.getByText(/Открытых порталов нет — решать нечего/)).toBeTruthy()
+    expect(screen.getByText(/Открытых порталов нет — следующий цикл пройдёт без событий/)).toBeTruthy()
 
     await user.click(
       screen.getByRole('button', { name: 'Загрузить штатную смену' }),
     )
-    expect(screen.getByText('Порталы — 5')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Очередь порталов — 5' })).toBeTruthy()
+  })
+})
+
+describe('полный путь решения', () => {
+  it('после стабилизации разрешает разведку и приносит отчёт через цикл', async () => {
+    const user = userEvent.setup()
+    renderApp()
+    await skipIntro(user)
+
+    const observer = () =>
+      screen.getByRole('button', { name: /Отправить наблюдателя/ })
+
+    expect((observer() as HTMLButtonElement).disabled).toBe(true)
+    await user.click(screen.getAllByRole('button', { name: 'Стабилизировать' })[0])
+    expect((observer() as HTMLButtonElement).disabled).toBe(false)
+
+    await user.click(observer())
+    expect(screen.getByRole('status').textContent).toContain('Наблюдатель')
+    expect(screen.getByText(/наблюдатель внутри/)).toBeTruthy()
+
+    await user.click(screen.getByRole('button', { name: /Следующий цикл/ }))
+    expect(screen.getByText(/Наблюдатель вернулся: подтверждено существ/)).toBeTruthy()
+  })
+
+  it('ставит портал под вопрос и сразу показывает новый статус', async () => {
+    const user = userEvent.setup()
+    renderApp()
+    await skipIntro(user)
+
+    await user.click(screen.getByRole('button', { name: /Пометить «под вопросом»/ }))
+
+    expect(screen.getByText(/Ранг A — высокий · Под вопросом/)).toBeTruthy()
+    expect(screen.getByRole('status').textContent).toContain('Под вопросом')
+  })
+
+  it('подтверждает опасное закрытие и убирает портал из активной очереди', async () => {
+    const user = userEvent.setup()
+    renderApp()
+    await skipIntro(user)
+
+    await user.click(screen.getByRole('button', { name: /Закрыть портал/ }))
+    const dialog = screen.getByRole('alertdialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Да, закрыть портал' }))
+
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(screen.getByRole('status').textContent).toContain('Закрыт')
+    expect(screen.getByText(/Критических нет · открыто 4/)).toBeTruthy()
+  })
+})
+
+describe('прогноз и служебные разделы', () => {
+  it('до цикла предупреждает, какой портал станет опаснее', async () => {
+    const user = userEvent.setup()
+    renderApp()
+    await skipIntro(user)
+
+    expect(screen.getByText(/Сильнее всех просядет «Врата №19/)).toBeTruthy()
+    expect(screen.getAllByText(/риск 72 → 76/).length).toBeGreaterThan(0)
+  })
+
+  it('критический сценарий предупреждает о предстоящем схлопывании', async () => {
+    const user = userEvent.setup()
+    renderApp()
+    await skipIntro(user)
+
+    await user.selectOptions(screen.getByLabelText('Демо-сценарий'), 'critical')
+    expect(screen.getByText(/схлопнется «Врата №14 — Последний маяк»/)).toBeTruthy()
+
+    // Предупреждение не блокирует демонстрацию последствия.
+    await user.click(screen.getByRole('button', { name: /Следующий цикл/ }))
+    const feedback = screen.getByRole('status')
+    expect(feedback.textContent).toContain('Врата №14 — Последний маяк')
+    expect(feedback.textContent).toContain('Схлопнулся')
+  })
+
+  it('открывает читаемый AI Worklog с содержанием и незаполненными полями', async () => {
+    const user = userEvent.setup()
+    renderApp()
+    await skipIntro(user)
+
+    await user.click(screen.getByRole('button', { name: 'AI Worklog' }))
+
+    expect(screen.getByRole('heading', { name: 'AI Worklog' })).toBeTruthy()
+    expect(screen.getByRole('navigation', { name: 'Разделы отчёта' })).toBeTruthy()
+    expect(screen.getByText('Общее время разработки')).toBeTruthy()
+    expect(screen.getByText('Израсходовано токенов')).toBeTruthy()
   })
 })

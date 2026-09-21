@@ -20,12 +20,10 @@ import type {
   PortalActionKind,
 } from './types'
 import { ACTION_LABELS, CYCLE_MINUTES, isActive } from './types'
-import { checkAction, MAX_STABILITY, STABILIZE_ENERGY_DROP, STABILIZE_STEP } from './rules'
+import { applyStabilize, checkAction } from './rules'
 import { computeRisk } from './risk'
+import { projectPortal } from './cycle'
 import { createScenario } from './seed'
-
-const clamp = (value: number, min: number, max: number) =>
-  Math.min(max, Math.max(min, value))
 
 /**
  * Идентификатор записи журнала. Намеренно детерминированный, без Math.random:
@@ -127,11 +125,7 @@ export function labReducer(state: LabState, action: LabAction): LabState {
       const portal = result.portal
 
       const riskBefore = computeRisk(portal).score
-      let next: Portal = {
-        ...portal,
-        stability: clamp(portal.stability + STABILIZE_STEP, 0, MAX_STABILITY),
-        energy: clamp(portal.energy - STABILIZE_ENERGY_DROP, 0, 100),
-      }
+      let next: Portal = applyStabilize(portal)
       const riskAfter = computeRisk(next).score
       next = addHistory(
         next,
@@ -237,12 +231,10 @@ export function labReducer(state: LabState, action: LabAction): LabState {
 /**
  * Один цикл наблюдения — 15 минут.
  *
- * Что происходит:
- *  1. Наблюдатели внутри порталов возвращаются с отчётом и уточняют число существ.
- *  2. У активных порталов уменьшается время до схлопывания.
- *  3. Порталы естественным образом теряют стабильность и набирают энергию —
- *     поэтому бездействие само по себе повышает риск.
- *  4. Порталы, у которых время вышло, схлопываются.
+ * Сами показатели считает `projectPortal` из cycle.ts — та же функция,
+ * по которой интерфейс строит прогноз «что будет через цикл». Здесь
+ * остаётся то, чего у прогноза быть не должно: записи в историю портала
+ * и в журнал смены.
  *
  * Никакой случайности: тот же ввод даёт тот же результат.
  */
@@ -253,24 +245,20 @@ function advanceCycle(state: LabState): LabState {
   const portals = state.portals.map((portal) => {
     if (!isActive(portal)) return portal
 
-    let next = portal
+    const projected = projectPortal(portal)
+    let next: Portal = { ...projected, history: portal.history }
 
-    // 1. Отчёт наблюдателя.
-    if (next.observerInside) {
-      const estimated = next.creaturesInside
-      const actual = next.creaturesActual
+    // Отчёт наблюдателя: сравниваем то, что показывали приборы, с тем,
+    // что он увидел своими глазами.
+    if (portal.observerInside) {
+      const estimated = portal.creaturesInside
+      const actual = portal.creaturesActual
       const delta =
         actual === estimated
           ? 'приборы не ошиблись'
           : actual > estimated
             ? `на ${actual - estimated} больше, чем показывали приборы`
             : `на ${estimated - actual} меньше, чем показывали приборы`
-      next = {
-        ...next,
-        observerInside: false,
-        creaturesInside: actual,
-        creaturesConfirmed: true,
-      }
       next = addHistory(
         next,
         clockMinutes,
@@ -283,22 +271,8 @@ function advanceCycle(state: LabState): LabState {
       })
     }
 
-    // 2–3. Ход времени и естественный дрейф параметров.
-    const minutesToCollapse = Math.max(0, next.minutesToCollapse - CYCLE_MINUTES)
-    next = {
-      ...next,
-      minutesToCollapse,
-      stability: clamp(next.stability - NATURAL_STABILITY_DECAY, 0, 100),
-      energy: clamp(next.energy + NATURAL_ENERGY_GROWTH, 0, 100),
-    }
-
-    // 4. Схлопывание.
-    if (minutesToCollapse === 0) {
-      next = addHistory(
-        { ...next, status: 'COLLAPSED' },
-        clockMinutes,
-        'Время вышло: портал схлопнулся.',
-      )
+    if (projected.status === 'COLLAPSED') {
+      next = addHistory(next, clockMinutes, 'Время вышло: портал схлопнулся.')
       drafts.push({
         kind: 'critical',
         portal: next,
@@ -318,11 +292,6 @@ function advanceCycle(state: LabState): LabState {
     ...drafts,
   ])
 }
-
-/** За цикл портал теряет 3 пункта стабильности... */
-export const NATURAL_STABILITY_DECAY = 3
-/** ...и набирает 2 пункта энергии. Бездействие повышает риск. */
-export const NATURAL_ENERGY_GROWTH = 2
 
 export const SCENARIO_TITLES: Record<LabState['scenario'], string> = {
   standard: 'Штатный режим',

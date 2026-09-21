@@ -1,101 +1,91 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useLab } from './state/labStore'
-import { SummaryPanel } from './ui/SummaryPanel'
-import { PortalList } from './ui/PortalList'
-import { PortalCard } from './ui/PortalCard'
-import { EventLog } from './ui/EventLog'
-import { ShiftHeader } from './ui/ShiftHeader'
+import { TopBar, type Tab } from './ui/TopBar'
+import { PortalCamera } from './ui/PortalCamera'
+import { DecisionBench } from './ui/DecisionBench'
+import { PortalQueue } from './ui/PortalQueue'
+import { LabStatus } from './ui/LabStatus'
+import { Archive } from './ui/Archive'
+import { ChangeFlash } from './ui/ChangeFlash'
 import { ConfirmDialog } from './ui/ConfirmDialog'
-import { FocusPanel } from './ui/FocusPanel'
 import { Onboarding, useOnboarding } from './ui/Onboarding'
 import { WorklogScreen } from './ui/WorklogScreen'
 
-type Tab = 'lab' | 'worklog'
-
 /**
- * Экран собран по приоритету, а не по удобству вёрстки:
+ * Экран собран по одному вопросу: «что делать прямо сейчас».
  *
- *  1. кто вы, цель смены и текущее время;
- *  2. что требует решения прямо сейчас;
- *  3. краткая сводка;
- *  4. список порталов;
- *  5. карточка выбранного;
- *  6. журнал событий.
+ *  1. Верхняя панель — кто здесь, сколько времени, что горит, как двинуть цикл.
+ *  2. Камера портала — самый опасный портал крупно, с рангом, риском,
+ *     главной угрозой и одним рекомендованным действием.
+ *  3. Панель решения — четыре действия, у каждого написано последствие.
+ *  4. Очередь — остальные порталы, самые опасные сверху.
+ *  5. Подробности (формула, история, журнал) — в раскрывающихся блоках.
  *
- * До редизайна порядок был другим: первым шёл переключатель демо-данных,
- * а рекомендация лежала под разбором формулы — то есть человеку сначала
- * показывали арифметику и только потом то, что нужно сделать.
+ * Прежняя версия показывала сначала сводку и таблицу, потом карточку,
+ * а рекомендацию — где-то под разбором формулы. Порядок был удобен вёрстке,
+ * а не человеку.
  */
 export function App() {
-  const { portals, summary } = useLab()
+  const { portals, summary, state } = useLab()
   const [tab, setTab] = useState<Tab>('lab')
   const [manualId, setManualId] = useState<string | null>(null)
-  const cardRef = useRef<HTMLDivElement>(null)
   const intro = useOnboarding()
 
   // Если выбранный портал исчез при смене сценария, показываем самый
-  // опасный из активных — интерфейс не должен оставаться пустым.
+  // опасный из активных — камера не должна оставаться пустой.
   const manualExists =
     manualId !== null && portals.some((item) => item.portal.id === manualId)
   const selectedId = manualExists
     ? manualId
     : (summary.attention[0]?.portal.id ?? portals[0]?.portal.id ?? null)
 
-  // На узком экране карточка лежит ниже списка, поэтому переход из блока
-  // «требует решения» доводит до неё, а не просто меняет выделение.
-  const openCard = useCallback((portalId: string) => {
+  // Пока за смену не сделано ни одного решения, рекомендованная кнопка
+  // помечена: первый шаг должен быть очевиден и после закрытия вступления.
+  const firstStepPending = !state.log.some((entry) => entry.kind !== 'system')
+
+  const select = useCallback((portalId: string) => {
     setManualId(portalId)
-    cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [])
+
+  // Действие закрепляет портал в камере. Иначе очередь пересортировывалась
+  // сразу после нажатия, камера уезжала на другой портал, и сводка
+  // «риск 72 → 60» относилась к тому, кого на экране уже нет.
+  const act = useCallback((portalId: string) => {
+    setManualId(portalId)
   }, [])
 
   return (
-    <div className="app">
-      <ShiftHeader onShowIntro={intro.show} />
-
-      <nav className="tabs" aria-label="Разделы">
-        <button
-          type="button"
-          className={`tab${tab === 'lab' ? ' tab--active' : ''}`}
-          aria-current={tab === 'lab'}
-          onClick={() => setTab('lab')}
-        >
-          Лаборатория
-        </button>
-        <button
-          type="button"
-          className={`tab${tab === 'worklog' ? ' tab--active' : ''}`}
-          aria-current={tab === 'worklog'}
-          onClick={() => setTab('worklog')}
-        >
-          AI Worklog
-        </button>
-      </nav>
+    <div className="shell">
+      <TopBar tab={tab} onTabChange={setTab} onShowIntro={intro.show} />
 
       {tab === 'lab' ? (
-        <>
-          <FocusPanel onOpenCard={openCard} />
-          <SummaryPanel onSelect={openCard} />
+        <main className="deck">
+          <PortalCamera
+            portalId={selectedId}
+            onSelect={select}
+            onAct={act}
+            firstStepPending={firstStepPending}
+          />
 
-          {/* Порядок в разметке — по приоритету: список, карточка, журнал.
-              На широком экране сетка визуально кладёт журнал под список,
-              чтобы рядом с длинной карточкой не зияла пустая колонка. */}
-          <div className="layout">
-            <div className="layout__list">
-              <PortalList selectedId={selectedId} onSelect={setManualId} />
-            </div>
-            <div className="layout__card" ref={cardRef}>
-              <PortalCard portalId={selectedId} />
-            </div>
-            <div className="layout__log">
-              <EventLog />
-            </div>
+          <DecisionBench portalId={selectedId} onAct={act} />
+
+          <div className="deck__rail">
+            <PortalQueue selectedId={selectedId} onSelect={select} />
+            <LabStatus />
           </div>
 
-          <ConfirmDialog />
-        </>
+          <div className="deck__archive">
+            <Archive portalId={selectedId} />
+          </div>
+        </main>
       ) : (
-        <WorklogScreen />
+        <main className="deck deck--reading">
+          <WorklogScreen />
+        </main>
       )}
+
+      <ChangeFlash />
+      <ConfirmDialog />
 
       {intro.open && <Onboarding onClose={intro.close} />}
     </div>

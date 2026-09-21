@@ -21,6 +21,24 @@ export const STABILIZE_STEP = 25
 /** Побочный эффект стабилизации: гашение энергии. */
 export const STABILIZE_ENERGY_DROP = 10
 
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value))
+
+/**
+ * Портал после стабилизации — без записи в историю и журнал.
+ *
+ * Нужна в двух местах: редьюсер применяет результат, а панель решения
+ * показывает последствие («печать 30 → 55») ещё до нажатия. Одна функция
+ * на оба случая — чтобы обещание интерфейса не разошлось с делом.
+ */
+export function applyStabilize(portal: Portal): Portal {
+  return {
+    ...portal,
+    stability: clamp(portal.stability + STABILIZE_STEP, 0, MAX_STABILITY),
+    energy: clamp(portal.energy - STABILIZE_ENERGY_DROP, 0, 100),
+  }
+}
+
 export function checkAction(
   portal: Portal,
   kind: PortalActionKind,

@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import { CYCLE_MINUTES } from '../domain/types'
 
 const STORAGE_KEY = 'portal-lab:onboarded'
@@ -45,42 +51,61 @@ export function useOnboarding() {
 interface Step {
   title: string
   text: string
-  glyph: 'watcher' | 'loop' | 'goal'
+  /** Что подсветить на настоящем экране. Пусто — шаг без указателя. */
+  target?: string
 }
 
+/**
+ * Три шага вместо трёх экранов текста: роль и цель, потом указатель
+ * на реальную часть интерфейса, потом первое действие.
+ *
+ * Прежнее вступление объясняло словами то, что можно показать пальцем,
+ * и после его закрытия человек всё равно не знал, куда смотреть.
+ */
 const STEPS: Step[] = [
   {
-    title: 'Вы — смотритель лаборатории',
+    title: 'Вы — смотритель ночной смены',
     text:
-      'В лаборатории открываются порталы в другие миры. Часть из них держится ' +
-      'штатно, часть теряет стабильность, а часть вот-вот схлопнется. Всю смену ' +
-      'за ними следите только вы.',
-    glyph: 'watcher',
+      'В лаборатории открыты порталы в другие миры. Каждый теряет стабильность ' +
+      'и однажды схлопывается. Схлопывание — провал смены, особенно если внутри ' +
+      'остались существа. Не допустить его — ваша работа.',
   },
   {
-    title: 'Цикл работы — четыре шага',
+    title: 'Опасный портал уже выбран',
     text:
-      'Выбрать портал в списке → изучить риск и причину → принять решение ' +
-      `(стабилизировать, закрыть, отправить наблюдателя или пометить «под вопросом») → ` +
-      `продвинуть время кнопкой «Следующий цикл» на ${CYCLE_MINUTES} минут.`,
-    glyph: 'loop',
+      'Камера показывает самый опасный портал смены и объясняет, почему именно ' +
+      'его. Ранг E–S, риск от 0 до 100 и главная угроза видны сразу — искать ' +
+      'по списку не нужно.',
+    target: '[data-tour="camera"]',
   },
   {
-    title: 'Цель — не допустить схлопывания',
+    title: 'Первое действие — эта кнопка',
     text:
-      'Схлопнувшийся портал — это провал смены, особенно если внутри остались ' +
-      'существа. Время идёт только по вашей команде, но бездействие дорого: ' +
-      'за каждый цикл порталы теряют стабильность и набирают энергию.',
-    glyph: 'goal',
+      'Под камерой стоит одно рекомендованное действие: приложение объясняет, ' +
+      `что оно изменит. Когда решение принято — двигайте время кнопкой ` +
+      `«Следующий цикл» (+${CYCLE_MINUTES} мин). Прогноз рядом с ней ` +
+      'заранее говорит, что случится.',
+    target: '[data-tour="primary"]',
   },
 ]
 
+interface Spot {
+  top: number
+  left: number
+  width: number
+  height: number
+}
+
 export function Onboarding({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState(0)
+  const [spot, setSpot] = useState<Spot | null>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
 
-  // Фокус уводим в диалог, чтобы клавиатурная навигация не осталась
-  // на фоне, а Esc закрывал вступление откуда угодно.
+  const current = STEPS[step]
+  const last = step === STEPS.length - 1
+
+  // Фокус уводим в подсказку, чтобы Esc закрывал её откуда угодно,
+  // а клавиатурная навигация не осталась на фоне.
   useEffect(() => {
     dialogRef.current?.focus()
     const onKey = (event: KeyboardEvent) => {
@@ -90,94 +115,152 @@ export function Onboarding({ onClose }: { onClose: () => void }) {
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const last = step === STEPS.length - 1
-  const current = STEPS[step]
+  // Подсветка меряется по живому элементу: если разметка изменится,
+  // указатель не окажется в пустом месте, а просто исчезнет.
+  useLayoutEffect(() => {
+    if (!current.target) {
+      setSpot(null)
+      return
+    }
 
-  return (
-    <div className="overlay" role="presentation">
-      <div
-        className="intro"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="intro-title"
-        tabIndex={-1}
-        ref={dialogRef}
-      >
-        <StepGlyph kind={current.glyph} />
+    const measure = () => {
+      const node = document.querySelector(current.target as string)
+      if (!node) {
+        setSpot(null)
+        return
+      }
+      const rect = node.getBoundingClientRect()
+      if (rect.width === 0 && rect.height === 0) {
+        setSpot(null)
+        return
+      }
+      setSpot({
+        top: rect.top,
+        left: rect.left,
+        width: rect.width,
+        height: rect.height,
+      })
+    }
 
-        <p className="intro__counter">
-          Шаг {step + 1} из {STEPS.length}
-        </p>
-        <h2 className="intro__title" id="intro-title">
-          {current.title}
-        </h2>
-        <p className="intro__text">{current.text}</p>
+    const node = document.querySelector(current.target)
+    node?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    measure()
+    const again = window.setTimeout(measure, 320)
 
-        <div className="intro__dots" aria-hidden="true">
-          {STEPS.map((item, index) => (
-            <span
-              key={item.title}
-              className={`intro__dot${index === step ? ' intro__dot--on' : ''}`}
-            />
-          ))}
-        </div>
+    window.addEventListener('resize', measure)
+    window.addEventListener('scroll', measure, true)
+    return () => {
+      window.clearTimeout(again)
+      window.removeEventListener('resize', measure)
+      window.removeEventListener('scroll', measure, true)
+    }
+  }, [current.target, step])
 
-        <div className="intro__buttons">
-          <button type="button" className="btn" onClick={onClose}>
-            Пропустить
-          </button>
-          {step > 0 && (
-            <button
-              type="button"
-              className="btn"
-              onClick={() => setStep((s) => s - 1)}
-            >
-              Назад
-            </button>
-          )}
+  const card = (
+    <div
+      className={`tour__card${spot ? ' tour__card--anchored' : ''}`}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="intro-title"
+      tabIndex={-1}
+      ref={dialogRef}
+      style={spot ? cardPosition(spot) : undefined}
+    >
+      <p className="tour__counter">
+        Шаг {step + 1} из {STEPS.length}
+      </p>
+      <h2 className="tour__title" id="intro-title">
+        {current.title}
+      </h2>
+      <p className="tour__text">{current.text}</p>
+
+      <div className="tour__dots" aria-hidden="true">
+        {STEPS.map((item, index) => (
+          <span
+            key={item.title}
+            className={`tour__dot${index === step ? ' tour__dot--on' : ''}`}
+          />
+        ))}
+      </div>
+
+      <div className="tour__buttons">
+        <button type="button" className="btn btn--ghost" onClick={onClose}>
+          Пропустить
+        </button>
+        {step > 0 && (
           <button
             type="button"
-            className="btn btn--primary"
-            onClick={() => (last ? onClose() : setStep((s) => s + 1))}
+            className="btn"
+            onClick={() => setStep((s) => s - 1)}
           >
-            {last ? 'Заступить на смену' : 'Дальше'}
+            Назад
           </button>
-        </div>
+        )}
+        <button
+          type="button"
+          className="btn btn--primary"
+          onClick={() => (last ? onClose() : setStep((s) => s + 1))}
+        >
+          {last ? 'Заступить на смену' : 'Дальше'}
+        </button>
       </div>
+    </div>
+  )
+
+  if (!spot) {
+    return (
+      <div className="tour tour--centred" role="presentation">
+        <FirstGlyph />
+        {card}
+      </div>
+    )
+  }
+
+  return (
+    <div className="tour tour--spotlit" role="presentation">
+      {/* Затемнение сделано огромной тенью вокруг выреза: так подсвеченный
+          кусок интерфейса остаётся настоящим, а не картинкой. */}
+      <div
+        className="tour__hole"
+        aria-hidden="true"
+        style={{
+          top: spot.top - 8,
+          left: spot.left - 8,
+          width: spot.width + 16,
+          height: spot.height + 16,
+        }}
+      />
+      {card}
     </div>
   )
 }
 
-/** Три простых знака к шагам — рисуются кодом, без картинок. */
-function StepGlyph({ kind }: { kind: Step['glyph'] }) {
+/** Карточка встаёт под подсветкой, а если места нет — над ней. */
+function cardPosition(spot: Spot): React.CSSProperties {
+  const CARD = 360
+  const GAP = 18
+  const viewportH = typeof window === 'undefined' ? 800 : window.innerHeight
+  const viewportW = typeof window === 'undefined' ? 1200 : window.innerWidth
+
+  const below = spot.top + spot.height + GAP
+  const fitsBelow = below + 230 < viewportH
+  const top = fitsBelow ? below : Math.max(GAP, spot.top - 230 - GAP)
+
+  const wanted = spot.left + spot.width / 2 - CARD / 2
+  const left = Math.min(Math.max(GAP, wanted), Math.max(GAP, viewportW - CARD - GAP))
+
+  return { top, left, width: Math.min(CARD, viewportW - GAP * 2) }
+}
+
+/** Знак к первому шагу: проём под наблюдением. Рисуется кодом. */
+function FirstGlyph() {
   return (
-    <svg className="intro__glyph" viewBox="0 0 120 64" aria-hidden="true">
-      {kind === 'watcher' && (
-        <>
-          <circle cx="60" cy="32" r="21" className="glyph__ring" />
-          <circle cx="60" cy="32" r="8" className="glyph__fill" />
-          <path d="M22 44 L38 44 M82 44 L98 44" className="glyph__line" />
-        </>
-      )}
-      {kind === 'loop' && (
-        <>
-          <path
-            d="M38 32 A22 22 0 1 1 60 54"
-            className="glyph__ring"
-            fill="none"
-          />
-          <path d="M60 46 L60 62 L52 54Z" className="glyph__fill" />
-          {[30, 60, 90].map((x) => (
-            <circle key={x} cx={x} cy="12" r="3" className="glyph__fill" />
-          ))}
-        </>
-      )}
-      {kind === 'goal' && (
-        <>
-          <circle cx="60" cy="32" r="21" className="glyph__ring" />
-          <path d="M46 32 L56 42 L76 22" className="glyph__line" fill="none" />
-        </>
-      )}
+    <svg className="tour__glyph" viewBox="0 0 160 96" aria-hidden="true">
+      <circle className="tour__glyph-ring" cx="80" cy="48" r="30" />
+      <circle className="tour__glyph-ring" cx="80" cy="48" r="20" />
+      <circle className="tour__glyph-core" cx="80" cy="48" r="8" />
+      <path className="tour__glyph-line" d="M14 70 L40 70 M120 70 L146 70" />
+      <path className="tour__glyph-line" d="M27 70 L27 56 M133 70 L133 56" />
     </svg>
   )
 }
