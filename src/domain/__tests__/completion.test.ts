@@ -103,7 +103,8 @@ describe('конечная смена и одно решение за цикл',
   it('выбирает оценку смены по заданным правилам', () => {
     let excellent = createScenario('empty')
     excellent = labReducer(excellent, { type: 'NEXT_CYCLE', confirmed: true })
-    expect(buildShiftSummary(excellent).outcome).toBe('excellent')
+    expect(buildShiftSummary(excellent).outcome).toBe('empty')
+    expect(buildShiftSummary(excellent).explanation).toBe('На начало смены активных порталов нет. Решения не требуются, смена завершена досрочно.')
 
     let losses = confirmCycle(createScenario('critical'))
     expect(buildShiftSummary(losses).outcome).toBe('losses')

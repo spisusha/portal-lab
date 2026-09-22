@@ -107,7 +107,7 @@ export function buildSummary(state: LabState): LabSummary {
   }
 }
 
-export type ShiftOutcome = 'excellent' | 'controlled' | 'losses'
+export type ShiftOutcome = 'excellent' | 'controlled' | 'losses' | 'empty'
 
 export interface ShiftSummary {
   durationMinutes: number
@@ -133,15 +133,20 @@ export function buildShiftSummary(state: LabState): ShiftSummary {
   const summary = buildSummary(state)
   const cycles = Math.floor((state.finishedAtMinutes ?? state.clockMinutes) / 15)
   const unresolved = state.unresolvedAtEnd ?? summary.unresolved
+  const startedPortals = state.initialPortalCount ?? state.portals.length
   const outcome: ShiftOutcome =
-    summary.collapsed > 0 || summary.lostCreatures > 0
-      ? 'losses'
-      : summary.sRank === 0 && unresolved === 0
-        ? 'excellent'
-        : 'controlled'
+    startedPortals === 0
+      ? 'empty'
+      : summary.collapsed > 0 || summary.lostCreatures > 0
+        ? 'losses'
+        : summary.sRank === 0 && unresolved === 0
+          ? 'excellent'
+          : 'controlled'
 
   const explanation =
-    outcome === 'excellent'
+    outcome === 'empty'
+      ? 'На начало смены активных порталов нет. Решения не требуются, смена завершена досрочно.'
+      : outcome === 'excellent'
       ? 'Ни один портал не схлопнулся, существа не потеряны, критических порталов не осталось.'
       : outcome === 'losses'
         ? `Есть потери: схлопнулось порталов — ${summary.collapsed}, потеряно существ — ${summary.lostCreatures}.`
@@ -150,7 +155,7 @@ export function buildShiftSummary(state: LabState): ShiftSummary {
   return {
     durationMinutes: state.finishedAtMinutes ?? state.clockMinutes,
     cycles,
-    startedPortals: state.initialPortalCount ?? state.portals.length,
+    startedPortals,
     remainingOpen: summary.active,
     stabilized: summary.stabilized,
     closed: summary.closed,

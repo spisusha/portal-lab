@@ -7,7 +7,7 @@ import {
 } from 'react'
 import { CYCLE_MINUTES } from '../domain/types'
 
-const STORAGE_KEY = 'portal-lab:onboarded'
+export const ONBOARDING_STORAGE_KEY = 'portal-lab:onboarding:v3:completed'
 
 /**
  * Показывать ли вступление автоматически.
@@ -18,7 +18,7 @@ const STORAGE_KEY = 'portal-lab:onboarded'
  */
 function wasOnboarded(): boolean {
   try {
-    return localStorage.getItem(STORAGE_KEY) === '1'
+    return localStorage.getItem(ONBOARDING_STORAGE_KEY) === '1'
   } catch {
     return false
   }
@@ -26,7 +26,7 @@ function wasOnboarded(): boolean {
 
 function rememberOnboarded() {
   try {
-    localStorage.setItem(STORAGE_KEY, '1')
+    localStorage.setItem(ONBOARDING_STORAGE_KEY, '1')
   } catch {
     /* Неважно: подсказку просто покажем снова в следующий раз. */
   }
@@ -35,8 +35,13 @@ function rememberOnboarded() {
 /** Управление вступлением: авто-показ при первом визите + ручное открытие. */
 export function useOnboarding() {
   const [open, setOpen] = useState(false)
+  const [clientReady, setClientReady] = useState(false)
+  const initialized = useRef(false)
 
   useEffect(() => {
+    if (initialized.current) return
+    initialized.current = true
+    setClientReady(true)
     if (!wasOnboarded()) setOpen(true)
   }, [])
 
@@ -45,7 +50,9 @@ export function useOnboarding() {
     setOpen(false)
   }, [])
 
-  return { open, close, show: () => setOpen(true) }
+  const show = useCallback(() => setOpen(true), [])
+
+  return { open: clientReady && open, close, show }
 }
 
 interface Step {

@@ -11,6 +11,7 @@ import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { App } from '../../App'
 import { LabProvider } from '../../state/labStore'
+import { ONBOARDING_STORAGE_KEY } from '../Onboarding'
 
 // jsdom не реализует прокрутку, а переход «Открыть карточку» её вызывает.
 beforeEach(() => {
@@ -57,19 +58,25 @@ describe('первый запуск', () => {
 
     await user.click(screen.getByRole('button', { name: 'Начать смену' }))
     expect(screen.queryByRole('dialog')).toBeNull()
+    expect(localStorage.getItem(ONBOARDING_STORAGE_KEY)).toBe('1')
   })
 
-  it('второй раз вступление само не открывается, но доступно по кнопке', async () => {
-    const user = userEvent.setup()
-    const first = renderApp()
-    await skipIntro(user)
-    first.unmount()
-
+  it('старый ключ не блокирует новую версию вступления', () => {
+    localStorage.setItem('portal-lab:onboarded', '1')
     renderApp()
+
+    expect(screen.getByRole('dialog')).toBeTruthy()
+  })
+
+  it('сохранённый ключ v3 отключает авто-показ, но не ручную кнопку', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem(ONBOARDING_STORAGE_KEY, '1')
+    const first = renderApp()
     expect(screen.queryByRole('dialog')).toBeNull()
 
     await user.click(screen.getByRole('button', { name: 'Как это работает' }))
     expect(screen.getByRole('dialog')).toBeTruthy()
+    first.unmount()
   })
 
   it('цель смены видна на экране постоянно, а не только во вступлении', async () => {
@@ -190,7 +197,7 @@ describe('ход времени', () => {
 
 describe('клавиатура', () => {
   it('удерживает Tab внутри onboarding и возвращает фокус после закрытия', async () => {
-    localStorage.setItem('portal-lab:onboarded', '1')
+    localStorage.setItem(ONBOARDING_STORAGE_KEY, '1')
     const user = userEvent.setup()
     renderApp()
 
@@ -263,8 +270,10 @@ describe('пустая лаборатория', () => {
 
     await user.selectOptions(screen.getByLabelText('Демо-сценарий'), 'empty')
 
-    expect(screen.getByRole('heading', { name: 'Смена завершена' })).toBeTruthy()
-    expect(screen.getByText(/досрочно/)).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Лаборатория пуста' })).toBeTruthy()
+    expect(screen.getByText('На начало смены активных порталов нет. Решения не требуются, смена завершена досрочно.')).toBeTruthy()
+
+    expect(screen.queryByText('Отличная смена')).toBeNull()
 
     await user.click(screen.getByRole('button', { name: 'Начать смену заново' }))
     expect(screen.getByText(/Порталов в начале/)).toBeTruthy()
@@ -404,5 +413,30 @@ describe('прогноз и служебные разделы', () => {
     expect(screen.getByRole('navigation', { name: 'Разделы отчёта' })).toBeTruthy()
     expect(screen.getByText('Общее время разработки')).toBeTruthy()
     expect(screen.getByText('Израсходовано токенов')).toBeTruthy()
+  })
+
+  // Активная вкладка должна читаться не только глазами: состояние идёт
+  // в aria-current, а подсветка — отдельным классом на самой кнопке.
+  it('помечает активную вкладку и переключает её обратно', async () => {
+    const user = userEvent.setup()
+    renderApp()
+    await skipIntro(user)
+
+    const tabs = screen.getByRole('navigation', { name: 'Разделы' })
+    const lab = within(tabs).getByRole('button', { name: 'Лаборатория' })
+    const worklog = within(tabs).getByRole('button', { name: 'AI Worklog' })
+
+    expect(lab.getAttribute('aria-current')).toBe('true')
+    expect(lab.className).toContain('tab--active')
+    expect(worklog.className).not.toContain('tab--active')
+
+    await user.click(worklog)
+    expect(worklog.getAttribute('aria-current')).toBe('true')
+    expect(worklog.className).toContain('tab--active')
+    expect(lab.className).not.toContain('tab--active')
+
+    await user.click(lab)
+    expect(lab.className).toContain('tab--active')
+    expect(worklog.className).not.toContain('tab--active')
   })
 })

@@ -16,7 +16,9 @@ export function ShiftComplete({
     excellent: 'Отличная смена',
     controlled: 'Смена под контролем',
     losses: 'Смена с потерями',
+    empty: 'Лаборатория пуста',
   } as const
+  const empty = shiftSummary.outcome === 'empty'
 
   const metrics = [
     ['Продолжительность', `${shiftSummary.durationMinutes} мин (${formatClock(shiftSummary.durationMinutes)})`],
@@ -39,10 +41,14 @@ export function ShiftComplete({
     <section className="complete" aria-labelledby="complete-title">
       <div className={`complete__mark complete__mark--${shiftSummary.outcome}`} aria-hidden="true" />
       <p className="complete__eyebrow">Итог работы смотрителя · {state.scenario === 'empty' ? 'досрочно' : 'демо-режим'}</p>
-      <h2 id="complete-title" className="complete__title">Смена завершена</h2>
-      <h3 className="complete__outcome">
-        {outcomeLabels[shiftSummary.outcome]}
-      </h3>
+      <h2 id="complete-title" className="complete__title">
+        {empty ? 'Лаборатория пуста' : 'Смена завершена'}
+      </h2>
+      {!empty && (
+        <h3 className="complete__outcome">
+          {outcomeLabels[shiftSummary.outcome]}
+        </h3>
+      )}
       <p className="complete__explanation">{shiftSummary.explanation}</p>
       <p className="complete__note">
         Демонстрационная смена ограничена шестью циклами по 15 минут — это короткий сценарий для проверки решений, а не восьмичасовая рабочая смена.
