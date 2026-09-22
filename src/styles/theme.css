@@ -1655,6 +1655,40 @@ input {
   }
 }
 
+/* Вступление легко пролистать, и вернуться к нему нужно за одно движение.
+   Кнопка крупнее соседей, нефритовая и со знаком вопроса: раньше она была
+   «призрачной» и терялась рядом с переключателем режима. */
+.btn--help {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s2) var(--s4);
+  background: var(--jade-wash);
+  border-color: var(--jade-line);
+  color: var(--jade-bright);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.btn--help:hover:not(:disabled) {
+  background: rgba(67, 224, 168, 0.16);
+  border-color: var(--jade);
+  color: var(--jade-bright);
+}
+
+.btn__badge {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border: 1px solid var(--jade);
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .btn--ghost {
   background: transparent;
   color: var(--bone-dim);
@@ -2060,11 +2094,55 @@ input {
 }
 
 /* Перечисление внутри раскрытого блока: без линеек, иначе подробности
-   выглядят важнее самого этапа. */
+   выглядят важнее самого этапа.
+
+   Маркер обязателен. Без него перечисление из восьми пунктов читалось как
+   один сплошной абзац: где кончается пункт и начинается перенос строки,
+   было не видно. Маркер родной (`list-style`), а не нарисованный
+   псевдоэлементом, — тогда второй строкой текст встаёт под текст, а не
+   под точку, и скринридер объявляет список списком. */
+.facts--plain {
+  list-style: disc;
+  padding-left: 1.1em;
+}
+
 .facts--plain li {
-  padding: 2px 0;
+  padding: 3px 0;
   border-bottom: 0;
   font-size: 14.5px;
+}
+
+.facts--plain li::marker {
+  color: var(--jade);
+}
+
+/* Перечисления внутри раскрытых подробностей этапа — те же правила:
+   они попадают под .facts--plain, но отступ слева там тесноват. */
+.stage__more .facts--plain {
+  margin-top: var(--s2);
+}
+
+/* Основной список фактов остаётся с линейками — в нём каждая строка
+   начинается с выделенного слова и читается как строка таблицы. Маркер
+   ставится рядом с ним, чтобы список не терялся среди абзацев. */
+.facts:not(.facts--plain) {
+  list-style: none;
+  padding-left: var(--s4);
+}
+
+.facts:not(.facts--plain) li {
+  position: relative;
+}
+
+.facts:not(.facts--plain) li::before {
+  content: '';
+  position: absolute;
+  left: calc(var(--s4) * -1);
+  top: 15px;
+  width: 6px;
+  height: 6px;
+  border: 1px solid var(--jade);
+  transform: rotate(45deg);
 }
 
 /* Две колонки ответственности: кто что делал — читается парой, а не
@@ -2077,6 +2155,8 @@ input {
 
 .worklog__subtitle {
   margin: 0 0 var(--s2);
+  padding-bottom: var(--s2);
+  border-bottom: 1px solid var(--line-soft);
   font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -2770,6 +2850,96 @@ input {
   font-size: 11px;
   color: var(--bone-faint);
   text-align: center;
+}
+
+/* ------------------------------------------------------------------
+   Частые вопросы.
+
+   Те же раскрывающиеся панели, что «Как рассчитан риск» и «Журнал смены»:
+   новый элемент интерфейса заводить незачем, а знакомая форма читается
+   без объяснений. Закрытый блок занимает одну строку на вопрос.
+   ------------------------------------------------------------------ */
+.faq {
+  margin-top: var(--s5);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: var(--s3);
+}
+
+.faq__head {
+  display: grid;
+  gap: var(--s1);
+}
+
+.faq__title {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.faq__lede {
+  margin: 0;
+  max-width: 68ch;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--bone-faint);
+}
+
+.faq__list {
+  display: grid;
+  gap: var(--s2);
+}
+
+.faq .drawer__body p {
+  margin: 0 0 var(--s2);
+  max-width: 78ch;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--bone-dim);
+}
+
+.faq .drawer__body p:last-child {
+  margin-bottom: 0;
+}
+
+.faq .drawer__body strong {
+  color: var(--bone);
+}
+
+.faq .drawer__body code {
+  font-family: var(--mono);
+  font-size: 13.5px;
+  letter-spacing: 0.06em;
+  color: var(--jade);
+}
+
+/* ------------------------------------------------------------------
+   Вступление на телефоне.
+
+   Карточка становится листом у края экрана и уходит в половину, свободную
+   от подсветки. Позицию считает `cardPosition`, здесь — только размеры:
+   лист не имеет права разрастись и закрыть то, на что показывает.
+   ------------------------------------------------------------------ */
+@media (max-width: 620px) {
+  .tour__card--anchored {
+    max-width: none;
+    max-height: 52vh;
+    overflow-y: auto;
+    padding: var(--s4);
+  }
+
+  .tour__card--anchored .tour__text {
+    font-size: 14.5px;
+  }
+
+  .tour__card--anchored .tour__buttons {
+    position: sticky;
+    bottom: 0;
+    padding-top: var(--s2);
+    background: var(--ink-800);
+  }
 }
 
 /* Адаптив живой смены стоит после базовых правил, а не в общем блоке

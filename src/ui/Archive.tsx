@@ -1,4 +1,5 @@
 import { useLab } from '../state/labStore'
+import { Drawer } from './Drawer'
 import { STATUS_LABELS, formatClock } from '../domain/types'
 import { RANK_SCALE, RISK_FORMULA_TEXT } from '../domain/risk'
 import { counted } from './plural'
@@ -119,26 +120,5 @@ export function Archive({ portalId }: { portalId: string | null }) {
         )}
       </Drawer>
     </div>
-  )
-}
-
-function Drawer({
-  title,
-  hint,
-  children,
-}: {
-  title: string
-  hint: string
-  children: React.ReactNode
-}) {
-  return (
-    <details className="drawer">
-      <summary className="drawer__handle">
-        <span className="drawer__mark" aria-hidden="true" />
-        <span className="drawer__title">{title}</span>
-        <span className="drawer__hint">{hint}</span>
-      </summary>
-      <div className="drawer__body">{children}</div>
-    </details>
   )
 }

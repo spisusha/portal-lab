@@ -7,6 +7,7 @@ import { DecisionBench } from './ui/DecisionBench'
 import { PortalQueue } from './ui/PortalQueue'
 import { LabStatus } from './ui/LabStatus'
 import { Archive } from './ui/Archive'
+import { Faq } from './ui/Faq'
 import { ChangeFlash } from './ui/ChangeFlash'
 import { ConfirmDialog } from './ui/ConfirmDialog'
 import { Onboarding, useOnboarding } from './ui/Onboarding'
@@ -162,6 +163,10 @@ export function App() {
 
           <div className="deck__archive">
             <Archive portalId={selectedId} />
+            {/* Вступление показывается один раз, а вопросы возникают дальше.
+                FAQ стоит внизу теми же раскрывающимися блоками: закрытый он
+                не мешает, открытый отвечает, не уводя со смены. */}
+            <Faq />
           </div>
         </main>
       ) : (

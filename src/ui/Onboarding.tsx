@@ -187,7 +187,13 @@ export function Onboarding({ onClose }: { onClose: () => void }) {
     }
 
     const node = document.querySelector(current.target)
-    node?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    // На узком экране цель уводится к верхнему краю, а не в центр: центр
+    // занимает обе половины сразу, и карточке некуда встать, не перекрыв
+    // то, на что она показывает.
+    node?.scrollIntoView({
+      block: isNarrow() ? 'start' : 'center',
+      behavior: 'smooth',
+    })
     measure()
     const again = window.setTimeout(measure, 320)
 
@@ -280,13 +286,54 @@ export function Onboarding({ onClose }: { onClose: () => void }) {
   )
 }
 
-/** Карточка встаёт под подсветкой, а если места нет — над ней. */
+/**
+ * Ширина, ниже которой карточка перестаёт помещаться рядом с подсветкой.
+ * На телефоне и карточка, и подсвеченный блок занимают почти всю ширину
+ * экрана, поэтому «рядом» не существует — только «выше» или «ниже».
+ */
+const NARROW = 620
+
+function isNarrow(): boolean {
+  return typeof window !== 'undefined' && window.innerWidth <= NARROW
+}
+
+/**
+ * Куда встать карточке вступления.
+ *
+ * На широком экране — под подсветкой, а если снизу не хватает места, над ней.
+ *
+ * На телефоне карточка превращается в лист у края экрана и всегда уходит в
+ * половину, свободную от подсветки. Прежняя версия считала место по тем же
+ * правилам, что и на десктопе, и на 390 px честно ставила карточку поверх
+ * того самого блока, про который рассказывала. Высота ограничена: лист не
+ * имеет права разрастись на весь экран и снова всё закрыть.
+ */
 function cardPosition(spot: Spot): React.CSSProperties {
-  const CARD = 360
-  const GAP = 18
   const viewportH = typeof window === 'undefined' ? 800 : window.innerHeight
   const viewportW = typeof window === 'undefined' ? 1200 : window.innerWidth
 
+  if (viewportW <= NARROW) {
+    const GAP = 12
+    const roomAbove = spot.top
+    const roomBelow = viewportH - (spot.top + spot.height)
+    // Лист уходит туда, где свободного места больше. Считать по середине
+    // подсветки нельзя: камера портала на телефоне выше экрана целиком, её
+    // середина всегда оказывается «во второй половине», и лист вставал
+    // сверху — ровно поверх кольца с рангом, про которое и рассказывает шаг.
+    // Когда места нет нигде — а камера портала на телефоне именно такая, —
+    // лист уходит вниз: в верхней части карточки стоит то, по чему портал
+    // узнают: изображение мира, кольцо с рангом, название и риск.
+    // Порог — примерная высота листа: меньше него «место» не место.
+    // Наверх лист уходит только тогда, когда сверху место есть, а снизу нет.
+    const NEEDED = 200
+    const sheetBelow = roomBelow >= NEEDED || roomAbove < NEEDED
+    return sheetBelow
+      ? { top: 'auto', bottom: GAP, left: GAP, right: GAP, width: 'auto' }
+      : { top: GAP, bottom: 'auto', left: GAP, right: GAP, width: 'auto' }
+  }
+
+  const CARD = 360
+  const GAP = 18
   const CARD_HEIGHT = 300
   const below = spot.top + spot.height + GAP
   const fitsBelow = below + CARD_HEIGHT < viewportH

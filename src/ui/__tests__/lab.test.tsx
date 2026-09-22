@@ -11,6 +11,8 @@ import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AppRoot } from '../../AppRoot'
 import { ONBOARDING_STORAGE_KEY } from '../Onboarding'
+import { RANK_SCALE } from '../../domain/risk'
+import { CYCLE_MINUTES, MAX_CYCLES } from '../../domain/types'
 
 // jsdom не реализует прокрутку, а переход «Открыть карточку» её вызывает.
 beforeEach(() => {
@@ -35,9 +37,11 @@ describe('первый запуск', () => {
     const user = userEvent.setup()
     renderApp()
 
-    expect(screen.getByRole('dialog')).toBeTruthy()
-    expect(screen.getByText(/Вы — смотритель лаборатории/)).toBeTruthy()
-    expect(screen.getByText(/нейтральные живые обитатели/)).toBeTruthy()
+    // Запрос ограничен диалогом: те же слова законно повторяются в FAQ
+    // под сменой, и «этот текст встречается один раз» проверять нечего.
+    const intro = screen.getByRole('dialog')
+    expect(within(intro).getByText(/Вы — смотритель лаборатории/)).toBeTruthy()
+    expect(within(intro).getByText(/нейтральные живые обитатели/)).toBeTruthy()
 
     await user.click(screen.getByRole('button', { name: 'Далее' }))
     expect(screen.getByText('Оцените состояние портала')).toBeTruthy()
@@ -86,6 +90,65 @@ describe('первый запуск', () => {
 
     expect(
       screen.getByText(/Сохраните ценные порталы и не допустите аварий/i),
+    ).toBeTruthy()
+  })
+})
+
+describe('помощь после первой минуты', () => {
+  it('кнопка «Как это работает» заметна и возвращает вступление', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem(ONBOARDING_STORAGE_KEY, '1')
+    renderApp()
+
+    const help = screen.getByRole('button', { name: /Как это работает/ })
+    // Кнопку легко проскочить, если вступление пролистали: она не
+    // «призрачная», а выделенная, и у неё есть знак вопроса.
+    expect(help.className).toContain('btn--help')
+    expect(help.textContent).toContain('?')
+
+    await user.click(help)
+    expect(screen.getByRole('dialog')).toBeTruthy()
+  })
+
+  it('внизу смены есть раздел частых вопросов, закрытый по умолчанию', async () => {
+    const user = userEvent.setup()
+    renderApp()
+    await skipIntro(user)
+
+    const faq = screen.getByRole('region', { name: 'Частые вопросы' })
+    const questions = within(faq).getAllByRole('group')
+    expect(questions.length).toBeGreaterThanOrEqual(8)
+    // Закрытый FAQ не должен занимать экран: ответы появляются по нажатию.
+    expect(questions.every((item) => !(item as HTMLDetailsElement).open)).toBe(true)
+
+    const question = within(faq).getByText('Почему кнопка действия недоступна?')
+    const panel = question.closest('details') as HTMLDetailsElement
+    // Разметка ответа существует всегда — браузер просто её не показывает,
+    // пока блок закрыт. Поэтому проверяется состояние блока, а не наличие
+    // текста в DOM: `queryByText` нашёл бы его и у закрытого.
+    expect(panel.open).toBe(false)
+
+    await user.click(question)
+    expect(panel.open).toBe(true)
+    expect(within(panel).getByText(/Причина всегда написана рядом/)).toBeTruthy()
+  })
+
+  it('FAQ берёт границы шкалы и длину смены из домена, а не из текста', async () => {
+    const user = userEvent.setup()
+    renderApp()
+    await skipIntro(user)
+
+    const faq = screen.getByRole('region', { name: 'Частые вопросы' })
+    const ranks = within(faq).getByText(`Что такое риск и ранги ${RANK_SCALE[0].rank}–${RANK_SCALE.at(-1)!.rank}?`)
+    await user.click(ranks)
+
+    const answer = ranks.closest('details')!
+    expect(answer.textContent).toContain(`${RANK_SCALE[0].min}–${RANK_SCALE[0].max}`)
+    expect(answer.textContent).toContain(`${RANK_SCALE.at(-1)!.min}–${RANK_SCALE.at(-1)!.max}`)
+
+    await user.click(within(faq).getByText('Как движется время?'))
+    expect(
+      within(faq).getByText(new RegExp(`Один цикл — ${CYCLE_MINUTES} лабораторных минут, в смене их ${MAX_CYCLES}`)),
     ).toBeTruthy()
   })
 })
@@ -429,7 +492,7 @@ describe('прогноз и служебные разделы', () => {
     expect(screen.getByText('Израсходовано токенов')).toBeTruthy()
     // Число тестов на экране должно совпадать с тем, что написано в
     // docs/worklog.md: один раз оно уже разошлось и уехало в публикацию.
-    expect(screen.getByText('195 автоматических тестов в 15 файлах')).toBeTruthy()
+    expect(screen.getByText('198 автоматических тестов в 15 файлах')).toBeTruthy()
 
     // Отчёт остаётся отчётом, а не стеной текста: подробности спрятаны.
     expect(screen.getAllByText('Технические подробности').length).toBeGreaterThan(0)

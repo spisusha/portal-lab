@@ -142,7 +142,13 @@ export function TopBar({
           </select>
         </label>
 
-        <button type="button" className="btn btn--ghost" onClick={onShowIntro}>
+        {/* Вступление можно пролистать случайно, и тогда вернуться к нему
+            нужно за одно движение. Поэтому кнопка не «призрачная», а
+            нефритовая, со знаком вопроса и крупнее соседей. */}
+        <button type="button" className="btn btn--help" onClick={onShowIntro}>
+          <span className="btn__badge" aria-hidden="true">
+            ?
+          </span>
           Как это работает
         </button>
       </div>

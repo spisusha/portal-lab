@@ -37,6 +37,15 @@ function renderApp() {
   return render(<AppRoot />)
 }
 
+/**
+ * Карточка режима — место, где код смены показан как код, а не как пример
+ * в тексте. FAQ внизу страницы тоже упоминает `PL-7K42`, поэтому искать
+ * код по всему экрану нельзя.
+ */
+function modeCard() {
+  return screen.getByRole('region', { name: /Выбранный режим/ })
+}
+
 function openByLink(seed = SEED) {
   window.history.replaceState(null, '', `/?mode=live&seed=${seed}`)
   return renderApp()
@@ -76,7 +85,7 @@ describe('запуск живой смены', () => {
 
     await user.selectOptions(screen.getByLabelText('Режим смены'), 'live')
 
-    const code = screen.getByText(/^PL-[234679ACDEFGHJKLMNPQRTUVWXYZ]{4}$/)
+    const code = within(modeCard()).getByText(/^PL-[234679ACDEFGHJKLMNPQRTUVWXYZ]{4}$/)
     expect(code).toBeTruthy()
     expect(window.location.search).toBe(`?mode=live&seed=${code.textContent}`)
   })
@@ -85,7 +94,7 @@ describe('запуск живой смены', () => {
   it('ссылка с кодом открывает ту же смену, что и домен', () => {
     openByLink()
 
-    expect(screen.getByText(SEED)).toBeTruthy()
+    expect(within(modeCard()).getByText(SEED)).toBeTruthy()
     for (const portal of SHIFT.portals) {
       expect(screen.getByRole('button', { name: new RegExp(portal.name) })).toBeTruthy()
     }
@@ -329,14 +338,14 @@ describe('итог живой смены', () => {
     await playToEnd(user)
 
     await user.click(screen.getByRole('button', { name: 'Повторить эту смену' }))
-    expect(screen.getByText(SEED)).toBeTruthy()
+    expect(within(modeCard()).getByText(SEED)).toBeTruthy()
     expect(window.location.search).toBe(`?mode=live&seed=${SEED}`)
     expect(screen.getByRole('button', { name: new RegExp(SHIFT.portals[0].name) })).toBeTruthy()
     expect(screen.getByLabelText('Смена 08:00')).toBeTruthy()
 
     await playToEnd(user)
     await user.click(screen.getByRole('button', { name: 'Новая живая смена' }))
-    const code = screen.getByText(/^PL-[234679ACDEFGHJKLMNPQRTUVWXYZ]{4}$/)
+    const code = within(modeCard()).getByText(/^PL-[234679ACDEFGHJKLMNPQRTUVWXYZ]{4}$/)
     expect(code.textContent).not.toBe(SEED)
     expect(window.location.search).toBe(`?mode=live&seed=${code.textContent}`)
   })
