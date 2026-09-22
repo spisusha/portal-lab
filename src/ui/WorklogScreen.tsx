@@ -15,7 +15,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 const TOTAL_TIME = 'Около 12–13 часов за полтора рабочих дня, включая обе версии'
 const TOTAL_TOKENS =
   'Около 717 тысяч output tokens по счётчику Mirasim за 21–22 сентября'
-const TOTAL_TESTS = '190 автоматических тестов в 15 файлах'
+const TOTAL_TESTS = '195 автоматических тестов в 15 файлах'
 
 interface Section {
   id: string

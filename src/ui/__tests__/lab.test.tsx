@@ -427,7 +427,9 @@ describe('прогноз и служебные разделы', () => {
 
     expect(screen.getByText('Время разработки')).toBeTruthy()
     expect(screen.getByText('Израсходовано токенов')).toBeTruthy()
-    expect(screen.getByText(/автоматических тестов в/)).toBeTruthy()
+    // Число тестов на экране должно совпадать с тем, что написано в
+    // docs/worklog.md: один раз оно уже разошлось и уехало в публикацию.
+    expect(screen.getByText('195 автоматических тестов в 15 файлах')).toBeTruthy()
 
     // Отчёт остаётся отчётом, а не стеной текста: подробности спрятаны.
     expect(screen.getAllByText('Технические подробности').length).toBeGreaterThan(0)
