@@ -13,6 +13,7 @@
  */
 
 import type { LabState, Portal, ScenarioId } from './types'
+import { createLiveShift } from './live/generator'
 
 interface PortalDraft {
   id: string
@@ -156,13 +157,29 @@ const CRITICAL: PortalDraft[] = [
   },
 ]
 
+/**
+ * Наборы демонстрационных данных. `live` здесь пуст намеренно: живая смена
+ * не набор, а генерация по seed, и лежит она в `live/generator.ts`.
+ */
 const SCENARIO_DRAFTS: Record<ScenarioId, PortalDraft[]> = {
   standard: STANDARD,
   critical: CRITICAL,
   empty: [],
+  live: [],
 }
 
-export function createScenario(scenario: ScenarioId): LabState {
+/**
+ * Состояние на начало смены.
+ *
+ * `seed` нужен только режиму «Живая смена» и приходит снаружи: домен кодов
+ * не придумывает, потому что для этого пришлось бы завести неуправляемый
+ * источник случайности. Если код не передан, живой режим открывается с
+ * запасным кодом — приложение не должно падать из-за отсутствия параметра.
+ */
+export function createScenario(scenario: ScenarioId, seed?: string): LabState {
+  if (scenario === 'live') {
+    return createLiveShift(seed ?? FALLBACK_SEED)
+  }
   return {
     portals: SCENARIO_DRAFTS[scenario].map(makePortal),
     log: [],
@@ -171,14 +188,23 @@ export function createScenario(scenario: ScenarioId): LabState {
     pendingConfirm: null,
     pendingCycleConfirm: null,
     pendingScenario: null,
+    pendingSeed: null,
     shiftStatus: 'ACTIVE',
     finishedAtMinutes: null,
     decisionCount: 0,
     observerReturns: 0,
     initialPortalCount: SCENARIO_DRAFTS[scenario].length,
     unresolvedAtEnd: null,
+    live: null,
   }
 }
+
+/**
+ * Код на случай, когда живую смену попросили без seed. Такое возможно только
+ * при программной ошибке или при ссылке, собранной вручную, — лучше открыть
+ * понятную смену, чем показать пустой экран.
+ */
+export const FALLBACK_SEED = 'PL-LAB2'
 
 /**
  * Состояние, с которого открывается приложение: штатная смена и одна

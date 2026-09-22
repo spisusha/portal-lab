@@ -2,8 +2,10 @@
  * Применение действий к состоянию лаборатории.
  *
  * Чистая функция: (состояние, действие) → новое состояние. Никакого React,
- * никаких побочных эффектов, ничего случайного — поэтому каждый сценарий
- * воспроизводим и покрывается тестом.
+ * никаких побочных эффектов, ничего неуправляемо случайного — поэтому
+ * каждый сценарий воспроизводим и покрывается тестом. «Живая смена» ничего
+ * здесь не нарушает: её разброс целиком задан строкой seed, которую редьюсер
+ * получает в действии `LOAD_SCENARIO`, а не придумывает сам.
  *
  * Запреты редьюсер не дублирует: он спрашивает rules.checkAction. Если
  * действие запрещено, состояние не меняется, но в журнал попадает строка
@@ -29,8 +31,10 @@ import {
 } from './types'
 import { applyStabilize, checkAction } from './rules'
 import { computeRisk } from './risk'
-import { projectPortal } from './cycle'
+import { simulateCycle } from './simulate'
 import { createScenario } from './seed'
+import { recordDecision, plainOutcome } from './live/debrief'
+import { scienceEntry, type ScienceKind } from './live/score'
 
 /**
  * Идентификатор записи журнала. Намеренно детерминированный, без Math.random:
@@ -78,6 +82,47 @@ function findPortal(state: LabState, portalId: string): Portal | undefined {
 }
 
 /**
+ * Запись решения в разбор смены.
+ *
+ * Только для живого режима: у демонстрационных сценариев `live` пуст, и
+ * состояние возвращается нетронутым. Портал передаётся тот, каким он был
+ * ДО действия, — иначе рекомендация в разборе окажется пересчитанной по
+ * уже изменившимся показателям, а не той, которую видел человек.
+ */
+function withDecision(
+  state: LabState,
+  portal: Portal,
+  action: PortalActionKind,
+  outcome: string,
+): LabState {
+  if (!state.live) return state
+  return {
+    ...state,
+    live: {
+      ...state.live,
+      timeline: [...state.live.timeline, recordDecision(state, portal, action, outcome)],
+    },
+  }
+}
+
+/** Начисление научных данных. Вне живой смены не делает ничего. */
+function withScience(
+  state: LabState,
+  kind: ScienceKind,
+  portal: Portal,
+  cycle: number,
+): LabState {
+  if (!state.live) return state
+  return {
+    ...state,
+    live: {
+      ...state.live,
+      science: [...state.live.science, scienceEntry(kind, portal, cycle)],
+    },
+  }
+}
+
+/**
  * Общая часть всех действий над порталом: найти портал, спросить правила,
  * при запрете записать причину в журнал.
  * Возвращает портал, если действие можно выполнять дальше.
@@ -120,25 +165,28 @@ function guard(
 export function labReducer(state: LabState, action: LabAction): LabState {
   switch (action.type) {
     case 'LOAD_SCENARIO': {
-      if (
-        !action.confirmed &&
-        (state.decisionCount ?? 0) > 0
-      ) {
+      if (!action.confirmed && (state.decisionCount ?? 0) > 0) {
         return {
           ...state,
           pendingScenario: action.scenario,
+          pendingSeed: action.seed ?? null,
           pendingConfirm: {
             action: 'LOAD_SCENARIO',
             scenario: action.scenario,
-            question: 'Прогресс текущей смены будет сброшен. Загрузить другой демо-сценарий?',
+            seed: action.seed,
+            question:
+              'Прогресс текущей смены будет сброшен. Загрузить другой режим смены?',
           },
         }
       }
-      const fresh = createScenario(action.scenario)
+      const fresh = createScenario(action.scenario, action.seed)
       const loaded = withLog(fresh, [
         {
           kind: 'system',
-          text: `Загружен набор данных «${SCENARIO_TITLES[action.scenario]}». Смена начата заново.`,
+          text:
+            action.scenario === 'live'
+              ? `Загружена живая смена ${fresh.live?.seed ?? ''}. Смена начата заново.`
+              : `Загружен набор данных «${SCENARIO_TITLES[action.scenario]}». Смена начата заново.`,
         },
       ])
       return action.scenario === 'empty' ? completeShift(loaded, 'empty') : loaded
@@ -149,6 +197,7 @@ export function labReducer(state: LabState, action: LabAction): LabState {
         ...state,
         pendingConfirm: null,
         pendingScenario: null,
+        pendingSeed: null,
         pendingCycleConfirm: null,
       }
     }
@@ -158,7 +207,7 @@ export function labReducer(state: LabState, action: LabAction): LabState {
     }
 
     case 'CANCEL_SCENARIO': {
-      return { ...state, pendingScenario: null, pendingConfirm: null }
+      return { ...state, pendingScenario: null, pendingSeed: null, pendingConfirm: null }
     }
 
     case 'STABILIZE': {
@@ -176,13 +225,31 @@ export function labReducer(state: LabState, action: LabAction): LabState {
         `Решение принято · ${formatClock(state.clockMinutes)}. Стабилизация: стабильность ${portal.stability} → ${next.stability}, энергия ${portal.energy} → ${next.energy}. Риск ${riskBefore} → ${riskAfter}.`,
       )
 
-      return withLog({ ...replacePortal(state, next), decisionCount: (state.decisionCount ?? 0) + 1 }, [
+      const tracked = withScience(
+        withDecision(
+          state,
+          portal,
+          'STABILIZE',
+          `Стабильность ${portal.stability} → ${next.stability}, риск ${riskBefore} → ${riskAfter}.`,
+        ),
+        'STABILIZE',
+        portal,
+        currentCycle(state) + 1,
+      )
+
+      return withLog(
         {
-          kind: 'action',
-          portal: next,
-          text: `Стабилизация выполнена. Риск снижен с ${riskBefore} до ${riskAfter}.`,
+          ...replacePortal(tracked, next),
+          decisionCount: (state.decisionCount ?? 0) + 1,
         },
-      ])
+        [
+          {
+            kind: 'action',
+            portal: next,
+            text: `Стабилизация выполнена. Риск снижен с ${riskBefore} до ${riskAfter}.`,
+          },
+        ],
+      )
     }
 
     case 'MARK_QUESTIONED': {
@@ -195,13 +262,26 @@ export function labReducer(state: LabState, action: LabAction): LabState {
         `Решение принято · ${formatClock(state.clockMinutes)}. Портал помечен как «под вопросом»: требуется решение смотрителя.`,
       )
 
-      return withLog({ ...replacePortal(state, next), decisionCount: (state.decisionCount ?? 0) + 1 }, [
+      const tracked = withDecision(
+        state,
+        result.portal,
+        'MARK_QUESTIONED',
+        plainOutcome(result.portal, 'MARK_QUESTIONED'),
+      )
+
+      return withLog(
         {
-          kind: 'warning',
-          portal: next,
-          text: 'Портал помечен как «под вопросом».',
+          ...replacePortal(tracked, next),
+          decisionCount: (state.decisionCount ?? 0) + 1,
         },
-      ])
+        [
+          {
+            kind: 'warning',
+            portal: next,
+            text: 'Портал помечен как «под вопросом».',
+          },
+        ],
+      )
     }
 
     case 'SEND_OBSERVER': {
@@ -214,13 +294,26 @@ export function labReducer(state: LabState, action: LabAction): LabState {
         `Решение принято · ${formatClock(state.clockMinutes)}. Наблюдатель направлен внутрь. Отчёт ожидается к следующему циклу.`,
       )
 
-      return withLog({ ...replacePortal(state, next), decisionCount: (state.decisionCount ?? 0) + 1 }, [
+      const tracked = withDecision(
+        state,
+        result.portal,
+        'SEND_OBSERVER',
+        plainOutcome(result.portal, 'SEND_OBSERVER'),
+      )
+
+      return withLog(
         {
-          kind: 'action',
-          portal: next,
-          text: 'Наблюдатель направлен внутрь портала.',
+          ...replacePortal(tracked, next),
+          decisionCount: (state.decisionCount ?? 0) + 1,
         },
-      ])
+        [
+          {
+            kind: 'action',
+            portal: next,
+            text: 'Наблюдатель направлен внутрь портала.',
+          },
+        ],
+      )
     }
 
     case 'CLOSE': {
@@ -280,13 +373,27 @@ export function labReducer(state: LabState, action: LabAction): LabState {
         `Решение принято · ${formatClock(state.clockMinutes)}. Портал закрыт${suffix}.`,
       )
 
-      const closed = withLog({ ...replacePortal(state, next), pendingConfirm: null, decisionCount: (state.decisionCount ?? 0) + 1 }, [
+      const tracked = withDecision(
+        state,
+        portal,
+        'CLOSE',
+        plainOutcome(portal, 'CLOSE'),
+      )
+
+      const closed = withLog(
         {
-          kind: notes.length > 0 ? 'warning' : 'action',
-          portal: next,
-          text: `Портал закрыт${suffix}.`,
+          ...replacePortal(tracked, next),
+          pendingConfirm: null,
+          decisionCount: (state.decisionCount ?? 0) + 1,
         },
-      ])
+        [
+          {
+            kind: notes.length > 0 ? 'warning' : 'action',
+            portal: next,
+            text: `Портал закрыт${suffix}.`,
+          },
+        ],
+      )
       return finalizeIfNeeded(closed, 'empty')
     }
 
@@ -330,7 +437,14 @@ function completeShift(
   unresolvedAtEnd?: number,
 ): LabState {
   if (state.shiftStatus === 'COMPLETE') return state
-  const finished = {
+  // Порталы, дожившие до конца смены открытыми, — это долгое наблюдение,
+  // и в живой смене оно засчитывается научными данными.
+  const held = state.live
+    ? state.portals
+        .filter(isActive)
+        .map((portal) => scienceEntry('HELD', portal, currentCycle(state)))
+    : []
+  const finished: LabState = {
     ...state,
     shiftStatus: 'COMPLETE' as const,
     finishedAtMinutes: state.clockMinutes,
@@ -341,14 +455,19 @@ function completeShift(
       state.portals.filter(
         (portal) => isActive(portal) && portal.decisionCycle !== currentCycle(state),
       ).length,
+    live:
+      state.live && held.length > 0
+        ? { ...state.live, science: [...state.live.science, ...held] }
+        : state.live,
   }
+  const what = state.scenario === 'live' ? 'Живая смена' : 'Демо-смена'
   return withLog(finished, [
     {
       kind: reason === 'cycles' ? 'system' : 'warning',
       text:
         reason === 'cycles'
-          ? `Демо-смена завершена после ${MAX_CYCLES} циклов.`
-          : 'Демо-смена завершена досрочно: открытых порталов не осталось.',
+          ? `${what} завершена после ${MAX_CYCLES} циклов.`
+          : `${what} завершена досрочно: открытых порталов не осталось.`,
     },
   ])
 }
@@ -360,21 +479,24 @@ function finalizeIfNeeded(state: LabState, reason: 'empty'): LabState {
 /**
  * Один цикл наблюдения — 15 минут.
  *
- * Сами показатели считает `projectPortal` из cycle.ts — та же функция,
- * по которой интерфейс строит прогноз «что будет через цикл». Здесь
- * остаётся то, чего у прогноза быть не должно: записи в историю портала
- * и в журнал смены.
+ * Сами показатели считает `simulateCycle` — та же функция, по которой
+ * интерфейс строит прогноз «что будет через цикл», вместе с событием живой
+ * смены. Здесь остаётся то, чего у прогноза быть не должно: записи в историю
+ * портала и в журнал смены.
  *
- * Никакой случайности: тот же ввод даёт тот же результат.
+ * Неуправляемой случайности нет: тот же ввод и тот же seed дают тот же
+ * результат.
  */
 function advanceCycle(state: LabState): LabState {
   const clockMinutes = state.clockMinutes + CYCLE_MINUTES
   const drafts: LogDraft[] = []
+  const simulation = simulateCycle(state)
+  const returnedObservers: Portal[] = []
 
-  const portals = state.portals.map((portal) => {
+  const portals = state.portals.map((portal, index) => {
     if (!isActive(portal)) return portal
 
-    const projected = projectPortal(portal)
+    const projected = simulation.portals[index]
     let next: Portal = {
       ...projected,
       history: portal.history,
@@ -403,6 +525,7 @@ function advanceCycle(state: LabState): LabState {
         portal: next,
         text: `Наблюдатель вернулся: подтверждено существ — ${actual} (${delta}).`,
       })
+      returnedObservers.push(portal)
     }
 
     if (projected.status === 'COLLAPSED') {
@@ -421,6 +544,37 @@ function advanceCycle(state: LabState): LabState {
     return next
   })
 
+  // Событие живой смены идёт в журнал отдельными строками — ровно теми,
+  // что описаны в прогнозе. Никаких всплывающих окон.
+  for (const note of simulation.notes) {
+    drafts.push({ kind: toneToKind(simulation.event?.tone), text: note })
+  }
+
+  const cycleNumber = currentCycle(state) + 1
+  let live = state.live ?? null
+  if (live) {
+    if (simulation.event) {
+      live = {
+        ...live,
+        applied: [
+          ...live.applied,
+          { cycle: cycleNumber, event: simulation.event, notes: simulation.notes },
+        ],
+      }
+    }
+    if (returnedObservers.length > 0) {
+      live = {
+        ...live,
+        science: [
+          ...live.science,
+          ...returnedObservers.map((portal) =>
+            scienceEntry('OBSERVER', portal, cycleNumber),
+          ),
+        ],
+      }
+    }
+  }
+
   const advanced: LabState = {
     ...state,
     portals,
@@ -428,7 +582,8 @@ function advanceCycle(state: LabState): LabState {
     pendingConfirm: null,
     pendingCycleConfirm: null,
     decisionCount: state.decisionCount ?? 0,
-    observerReturns: (state.observerReturns ?? 0) + state.portals.filter((portal) => portal.observerInside).length,
+    observerReturns: (state.observerReturns ?? 0) + returnedObservers.length,
+    live,
   }
   const withCycleLog = withLog(advanced, [
     { kind: 'system', text: `Цикл наблюдения завершён (+${CYCLE_MINUTES} мин).` },
@@ -448,8 +603,15 @@ function advanceCycle(state: LabState): LabState {
   return finalizeIfNeeded(withCycleLog, 'empty')
 }
 
+/** Тон события → цвет строки журнала. Плохое событие не должно выглядеть буднично. */
+function toneToKind(tone: 'good' | 'bad' | 'neutral' | undefined): LogKind {
+  if (tone === 'bad') return 'warning'
+  return 'system'
+}
+
 export const SCENARIO_TITLES: Record<LabState['scenario'], string> = {
   standard: 'Штатный режим',
   critical: 'Критическая ситуация',
   empty: 'Пустая лаборатория',
+  live: 'Живая смена',
 }

@@ -12,7 +12,8 @@
 import type { LabState, Portal, RiskRank } from './types'
 import { CYCLE_MINUTES, isActive } from './types'
 import { computeRisk } from './risk'
-import { projectPortal } from './cycle'
+import { simulateCycle } from './simulate'
+import type { ShiftEvent } from './live/events'
 
 export interface PortalOutlook {
   portal: Portal
@@ -37,13 +38,27 @@ export interface CycleForecast {
   /** Одна фраза: что случится, если нажать «Следующий цикл» прямо сейчас. */
   headline: string
   tone: ForecastTone
+  /**
+   * Событие живой смены, назначенное на этот переход. `null` у трёх
+   * демонстрационных сценариев и на тихих переходах.
+   */
+  event: ShiftEvent | null
+  /**
+   * Обещание события словами. Считается по тому же состоянию и той же
+   * функцией, которой событие будет применено, — разойтись им нечем.
+   */
+  eventText: string | null
 }
 
 export function buildForecast(state: LabState): CycleForecast {
+  // Весь переход считается один раз и целиком: вместе с событием живой смены
+  // и его последствиями. Редьюсер позовёт ровно ту же функцию.
+  const simulation = simulateCycle(state)
+
   const outlooks: PortalOutlook[] = state.portals
-    .filter(isActive)
-    .map((portal) => {
-      const after = projectPortal(portal)
+    .map((portal, index) => ({ portal, after: simulation.portals[index] }))
+    .filter((pair) => isActive(pair.portal))
+    .map(({ portal, after }) => {
       const riskBefore = computeRisk(portal)
       const riskAfter = computeRisk({ ...after, status: portal.status })
       const collapsing = after.status === 'COLLAPSED'
@@ -74,6 +89,8 @@ export function buildForecast(state: LabState): CycleForecast {
     worst,
     headline: headlineFor(outlooks, collapsing, worst),
     tone: collapsing.length > 0 ? 'critical' : worst ? 'warning' : 'calm',
+    event: simulation.event,
+    eventText: simulation.announcement,
   }
 }
 

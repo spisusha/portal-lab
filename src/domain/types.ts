@@ -6,6 +6,9 @@
  * от интерфейса.
  */
 
+import type { WorldTraitId } from './live/worlds'
+import type { LiveShift } from './live/types'
+
 /** Статус портала. CLOSED и COLLAPSED — терминальные: из них нет выхода. */
 export type PortalStatus = 'OPEN' | 'QUESTIONED' | 'CLOSED' | 'COLLAPSED'
 
@@ -56,6 +59,12 @@ export interface Portal {
   stabilizedEver?: boolean
   /** Сколько существ потеряно при закрытии или схлопывании. */
   creaturesLost?: number
+  /**
+   * Особенность мира этого портала — только в режиме «Живая смена».
+   * У порталов трёх демонстрационных сценариев поле пустое, и все формулы
+   * работают ровно так же, как в версии 1.0.
+   */
+  trait?: WorldTraitId | null
 }
 
 export interface HistoryEntry {
@@ -90,7 +99,18 @@ export interface LogEntry {
   text: string
 }
 
-export type ScenarioId = 'standard' | 'critical' | 'empty'
+/**
+ * Режим смены. Первые три — детерминированные демонстрационные наборы из
+ * версии 1.0, они не меняются. `live` — переигрываемая смена по seed.
+ */
+export type ScenarioId = 'standard' | 'critical' | 'empty' | 'live'
+
+/** Демонстрационные наборы: у них фиксированные данные и никакого seed. */
+export const DEMO_SCENARIOS: ScenarioId[] = ['standard', 'critical', 'empty']
+
+export function isLiveScenario(scenario: ScenarioId): boolean {
+  return scenario === 'live'
+}
 
 /**
  * Запрос на подтверждение опасного действия.
@@ -100,6 +120,8 @@ export interface PendingConfirm {
   portalId?: string
   action: 'CLOSE' | 'NEXT_CYCLE' | 'LOAD_SCENARIO'
   scenario?: ScenarioId
+  /** Код смены для отложенной загрузки живого режима. */
+  seed?: string
   question: string
 }
 
@@ -114,6 +136,8 @@ export interface LabState {
   pendingCycleConfirm?: number | null
   /** Сценарий, который пользователь попросил загрузить с предупреждением. */
   pendingScenario?: ScenarioId | null
+  /** Код смены, с которым откроется отложенный живой режим. */
+  pendingSeed?: string | null
   /** Смена завершена после шести циклов или потери всех активных порталов. */
   shiftStatus?: 'ACTIVE' | 'COMPLETE'
   /** Время завершения смены, если она закончилась. */
@@ -126,6 +150,11 @@ export interface LabState {
   initialPortalCount?: number
   /** Сколько активных порталов остались без решения в момент завершения. */
   unresolvedAtEnd?: number | null
+  /**
+   * Всё, что относится только к «Живой смене»: seed, директива, расписание
+   * событий и разбор решений. У демонстрационных сценариев — `null`.
+   */
+  live?: LiveShift | null
 }
 
 export type LabAction =
@@ -136,7 +165,13 @@ export type LabAction =
   | { type: 'CANCEL_CONFIRM' }
   | { type: 'NEXT_CYCLE'; confirmed?: boolean }
   | { type: 'CANCEL_NEXT_CYCLE' }
-  | { type: 'LOAD_SCENARIO'; scenario: ScenarioId; confirmed?: boolean }
+  | {
+      type: 'LOAD_SCENARIO'
+      scenario: ScenarioId
+      /** Обязателен для `live`: домен сам кодов не придумывает. */
+      seed?: string
+      confirmed?: boolean
+    }
   | { type: 'CANCEL_SCENARIO' }
 
 /** Минут в одном цикле наблюдения. */
