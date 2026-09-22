@@ -15,6 +15,24 @@ import { WorldScene } from './WorldScene'
 import { toLabAction } from './portalActions'
 
 /**
+ * Премиальные фоновые сцены для всех миров из демо-данных.
+ *
+ * Растровая сцена остаётся фоном внутри существующего кольца портала:
+ * поверх неё по-прежнему лежат шкала опасности, виньетка и типографика.
+ */
+const WORLD_BACKGROUNDS: Record<string, string> = {
+  'Сумеречная топь': '/portal-lab/assets/portals/twilight-marsh.webp',
+  'Ледяные чертоги': '/portal-lab/assets/portals/ice-halls.webp',
+  'Пустошь Эхо': '/portal-lab/assets/portals/echo-wasteland.webp',
+  'Подземелья Керн': '/portal-lab/assets/portals/kern-underways.webp',
+  'Сад забытых имён': '/portal-lab/assets/portals/hollow-star.webp',
+  'Бездна Аркхан': '/portal-lab/assets/portals/arkhan-abyss.webp',
+  'Пепельные пустоши': '/portal-lab/assets/portals/ashen-wastes.webp',
+  'Залы Немой': '/portal-lab/assets/portals/silent-halls.webp',
+  'Море Сфер': '/portal-lab/assets/portals/sea-of-spheres.webp',
+}
+
+/**
  * Камера портала — главный объект экрана.
  *
  * Это слияние двух прежних блоков. Раньше «Требует решения сейчас» и
@@ -104,11 +122,7 @@ export function PortalCamera({
         <div className="camera__scene" aria-hidden="true">
           <WorldScene
             world={portal.world}
-            backgroundImage={
-              portal.id === 'p-19'
-                ? '/portal-lab/assets/portals/hollow-star.webp'
-                : undefined
-            }
+            backgroundImage={WORLD_BACKGROUNDS[portal.world]}
           />
         </div>
         <div className="camera__sweep" aria-hidden="true" />
