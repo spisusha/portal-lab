@@ -152,6 +152,7 @@ export function App() {
             onSelect={select}
             onAct={act}
             firstStepPending={firstStepPending}
+            manualPick={manualExists}
           />
 
           <DecisionBench portalId={selectedId} onAct={act} />

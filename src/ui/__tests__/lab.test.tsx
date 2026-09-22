@@ -184,6 +184,13 @@ describe('центральная камера портала', () => {
     // а изменение по исходному порталу остаётся в заметной обратной связи.
     expect(screen.getByRole('region', { name: 'Врата №11 — Стеклянная арка' })).toBeTruthy()
 
+    // Камера перешла сама — и не приписывает этот переход человеку.
+    // До исправления здесь стояло «Вы открыли портал вручную», хотя
+    // пользователь нажимал кнопку решения, а не выбирал портал в очереди.
+    const pick = screen.getByText(/Самый опасный сейчас/).closest('p')!
+    expect(pick.textContent).toContain('Очередь перешла к следующему порталу')
+    expect(pick.textContent).not.toContain('вручную')
+
     // Результат виден сразу, без поиска записи в журнале.
     const feedback = screen.getByRole('status')
     expect(within(feedback).getByText(/Риск 72/)).toBeTruthy()
@@ -193,6 +200,22 @@ describe('центральная камера портала', () => {
     expect(
       screen.getByText(/Стабилизация выполнена. Риск снижен с 72 до 60./),
     ).toBeTruthy()
+  })
+})
+
+describe('камера честно говорит, кто выбрал портал', () => {
+  it('ручной выбор в очереди подписан как ручной', async () => {
+    const user = userEvent.setup()
+    renderApp()
+    await skipIntro(user)
+
+    // Открываем не самый опасный портал сами — вот это и есть ручной выбор.
+    await user.click(
+      screen.getByRole('button', { name: /Врата №2 — Ржавый шлюз\. Ранг/ }),
+    )
+
+    const pick = screen.getByText(/Самый опасный сейчас/).closest('p')!
+    expect(pick.textContent).toContain('Вы открыли портал вручную')
   })
 })
 
@@ -498,7 +521,7 @@ describe('прогноз и служебные разделы', () => {
     expect(screen.getByText('Израсходовано токенов')).toBeTruthy()
     // Число тестов на экране должно совпадать с тем, что написано в
     // docs/worklog.md: один раз оно уже разошлось и уехало в публикацию.
-    expect(screen.getByText('198 автоматических тестов в 15 файлах')).toBeTruthy()
+    expect(screen.getByText('199 автоматических тестов в 15 файлах')).toBeTruthy()
 
     // Отчёт остаётся отчётом, а не стеной текста: подробности спрятаны.
     const details = screen.getAllByText('Что делал я, что делал AI и по какому промпту')

@@ -57,12 +57,19 @@ export function PortalCamera({
   onSelect,
   onAct,
   firstStepPending,
+  manualPick,
 }: {
   portalId: string | null
   onSelect: (portalId: string) => void
   /** Закрепить портал в камере: после действия очередь пересортируется. */
   onAct: (portalId: string) => void
   firstStepPending: boolean
+  /**
+   * Портал показан потому, что его выбрал человек, а не потому, что камера
+   * сама перешла к следующему. Разница видна только снаружи: внутри камеры
+   * «показан не самый опасный» выглядит одинаково в обоих случаях.
+   */
+  manualPick: boolean
 }) {
   const { portals, focus, forecast, dispatch, state } = useLab()
   const item = portals.find((p) => p.portal.id === portalId)
@@ -115,7 +122,14 @@ export function PortalCamera({
           <p className="camera__pick camera__pick--manual">
             <span className="camera__pick-mark" aria-hidden="true" />
             <span>
-              Вы открыли портал вручную. Самый опасный сейчас —{' '}
+              {/* После решения камера переходит к следующему порталу сама.
+                  Писать в этот момент «вы открыли портал вручную» — врать
+                  человеку про его же действие: он нажал кнопку решения,
+                  а не выбирал портал в очереди. */}
+              {manualPick
+                ? 'Вы открыли портал вручную.'
+                : 'Очередь перешла к следующему порталу.'}{' '}
+              Самый опасный сейчас —{' '}
               <button
                 type="button"
                 className="link"

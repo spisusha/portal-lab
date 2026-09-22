@@ -9,9 +9,11 @@
 
 - Живая версия: https://spisusha.github.io/portal-lab/
 - Репозиторий: https://github.com/spisusha/portal-lab
-- Стабильный релиз: https://github.com/spisusha/portal-lab/releases/tag/v1.0.0
-  (коммит `772e154`). Версия 1.1 «Живая смена» ведётся в ветке
-  `feature/live-shifts-v1.1`; Pages по-прежнему публикуется только из `main`.
+- Текущий релиз: https://github.com/spisusha/portal-lab/releases/tag/v1.1.0 —
+  версия 1.1 «Живая смена». Ветка `feature/live-shifts-v1.1` слита в `main`
+  обычным merge и больше не ведётся; работать нужно от `main`.
+  Предыдущий релиз — v1.0.0 (коммит `772e154`).
+- Pages публикуется только из `main`, автоматически при push.
 - Исходное задание: https://mox-studio.notion.site/AI-first-Developer-MOX-38894a5391e18140a0edf7192f03723c
 
 Страница задания в Notion собирается скриптами: обычная загрузка вернёт
