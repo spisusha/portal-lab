@@ -10,26 +10,36 @@ import {
 import { riskHeadline } from '../domain/risk'
 import { checkAction } from '../domain/rules'
 import { recommendAction } from '../domain/recommend'
+import { traitOf } from '../domain/live/worlds'
 import { PortalGauge } from './PortalGauge'
 import { WorldScene } from './WorldScene'
 import { toLabAction } from './portalActions'
 
 /**
- * Премиальные фоновые сцены для всех миров из демо-данных.
+ * Фоновые сцены девяти миров — собственные ассеты проекта из
+ * `public/assets/portals`. Внешних картинок, шрифтов и CDN в проекте нет.
  *
  * Растровая сцена остаётся фоном внутри существующего кольца портала:
  * поверх неё по-прежнему лежат шкала опасности, виньетка и типографика.
+ *
+ * Путь собирается из `BASE_URL`, а не пишется руками: на GitHub Pages это
+ * `/portal-lab/`, в тестах — `/`, и зашитая строка ломала бы одно из двух.
  */
-const WORLD_BACKGROUNDS: Record<string, string> = {
-  'Сумеречная топь': '/portal-lab/assets/portals/twilight-marsh.webp',
-  'Ледяные чертоги': '/portal-lab/assets/portals/ice-halls.webp',
-  'Пустошь Эхо': '/portal-lab/assets/portals/echo-wasteland.webp',
-  'Подземелья Керн': '/portal-lab/assets/portals/kern-underways.webp',
-  'Сад забытых имён': '/portal-lab/assets/portals/hollow-star.webp',
-  'Бездна Аркхан': '/portal-lab/assets/portals/arkhan-abyss.webp',
-  'Пепельные пустоши': '/portal-lab/assets/portals/ashen-wastes.webp',
-  'Залы Немой': '/portal-lab/assets/portals/silent-halls.webp',
-  'Море Сфер': '/portal-lab/assets/portals/sea-of-spheres.webp',
+const WORLD_FILES: Record<string, string> = {
+  'Сумеречная топь': 'twilight-marsh',
+  'Ледяные чертоги': 'ice-halls',
+  'Пустошь Эхо': 'echo-wasteland',
+  'Подземелья Керн': 'kern-underways',
+  'Сад забытых имён': 'hollow-star',
+  'Бездна Аркхан': 'arkhan-abyss',
+  'Пепельные пустоши': 'ashen-wastes',
+  'Залы Немой': 'silent-halls',
+  'Море Сфер': 'sea-of-spheres',
+}
+
+function worldBackground(world: string): string | undefined {
+  const file = WORLD_FILES[world]
+  return file ? `${import.meta.env.BASE_URL}assets/portals/${file}.webp` : undefined
 }
 
 /**
@@ -75,6 +85,7 @@ export function PortalCamera({
   }
 
   const { portal, risk } = item
+  const trait = traitOf(portal.trait)
   const recommendation = recommendAction(portal)
   const action = recommendation.action
   const check = action ? checkAction(portal, action, currentCycle(state)) : null
@@ -122,7 +133,7 @@ export function PortalCamera({
         <div className="camera__scene" aria-hidden="true">
           <WorldScene
             world={portal.world}
-            backgroundImage={WORLD_BACKGROUNDS[portal.world]}
+            backgroundImage={worldBackground(portal.world)}
           />
         </div>
         <div className="camera__sweep" aria-hidden="true" />
@@ -131,6 +142,14 @@ export function PortalCamera({
 
         <div className="camera__plate">
           <p className="camera__world">{portal.world}</p>
+          {/* Особенность мира стоит вплотную к его названию и до кнопок:
+              игрок обязан знать её ДО решения, а не узнать из журнала. */}
+          {trait && (
+            <p className="camera__trait">
+              <span className="camera__trait-name">{trait.title}</span>
+              <span className="camera__trait-effect">{trait.effect}</span>
+            </p>
+          )}
           <h2 className="camera__name" id="camera-name">
             {portal.name}
           </h2>

@@ -140,7 +140,7 @@ describe('запреты объясняются до нажатия', () => {
     await skipIntro(user)
 
     await user.selectOptions(
-      screen.getByLabelText('Демо-сценарий'),
+      screen.getByLabelText('Режим смены'),
       'critical',
     )
 
@@ -268,7 +268,7 @@ describe('пустая лаборатория', () => {
     renderApp()
     await skipIntro(user)
 
-    await user.selectOptions(screen.getByLabelText('Демо-сценарий'), 'empty')
+    await user.selectOptions(screen.getByLabelText('Режим смены'), 'empty')
 
     expect(screen.getByRole('heading', { name: 'Лаборатория пуста' })).toBeTruthy()
     expect(screen.getByText('На начало смены активных порталов нет. Решения не требуются, смена завершена досрочно.')).toBeTruthy()
@@ -353,7 +353,7 @@ describe('прогноз и служебные разделы', () => {
     const user = userEvent.setup()
     renderApp()
     await skipIntro(user)
-    await user.selectOptions(screen.getByLabelText('Демо-сценарий'), 'empty')
+    await user.selectOptions(screen.getByLabelText('Режим смены'), 'empty')
 
     expect(screen.getAllByText('Смена завершена').length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: /Следующий цикл/ })).toBeNull()
@@ -364,14 +364,14 @@ describe('прогноз и служебные разделы', () => {
     const user = userEvent.setup()
     renderApp()
     await skipIntro(user)
-    await user.selectOptions(screen.getByLabelText('Демо-сценарий'), 'critical')
+    await user.selectOptions(screen.getByLabelText('Режим смены'), 'critical')
     await user.click(screen.getByRole('button', { name: /Следующий цикл/ }))
     await user.click(
       within(screen.getByRole('alertdialog')).getByRole('button', {
         name: /перейти к циклу/,
       }),
     )
-    await user.selectOptions(screen.getByLabelText('Демо-сценарий'), 'standard')
+    await user.selectOptions(screen.getByLabelText('Режим смены'), 'standard')
 
     expect(screen.queryByText(/Схлопнулся.*Открыт/)).toBeNull()
   })
@@ -390,7 +390,7 @@ describe('прогноз и служебные разделы', () => {
     renderApp()
     await skipIntro(user)
 
-    await user.selectOptions(screen.getByLabelText('Демо-сценарий'), 'critical')
+    await user.selectOptions(screen.getByLabelText('Режим смены'), 'critical')
     expect(screen.getByText(/схлопнется «Врата №14 — Последний маяк»/)).toBeTruthy()
 
     // Предупреждение не блокирует демонстрацию последствия.

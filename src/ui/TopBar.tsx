@@ -2,14 +2,22 @@ import { useEffect, useRef, useState } from 'react'
 import { useLab } from '../state/labStore'
 import { SCENARIO_TITLES } from '../domain/reducer'
 import { CYCLE_MINUTES, currentCycle, formatClock, isActive, type ScenarioId } from '../domain/types'
+import { createSeedCode } from '../state/liveSeed'
 import { counted, plural } from './plural'
 
-const SCENARIOS: ScenarioId[] = ['standard', 'critical', 'empty']
+/**
+ * Порядок режимов: сначала три детерминированных набора, которыми проверяют
+ * обязательные состояния задания, и только потом переигрываемая смена.
+ * Живая смена стоит последней намеренно — она не должна открываться первой
+ * у человека, который пришёл проверять работу.
+ */
+const SCENARIOS: ScenarioId[] = ['standard', 'critical', 'empty', 'live']
 
 const SCENARIO_HINTS: Record<ScenarioId, string> = {
   standard: 'Обычная смена: ранги от E до A',
   critical: 'Есть портал ранга S и портал, который схлопнется за один цикл',
   empty: 'Пустой список порталов',
+  live: 'Новая смена по коду: свои порталы, особенности миров, события и директива',
 }
 
 export type Tab = 'lab' | 'worklog'
@@ -94,16 +102,20 @@ export function TopBar({
 
       <div className="topbar__tools">
         <label className="picker">
-          <span className="picker__label">Демо-сценарий</span>
+          <span className="picker__label">Режим смены</span>
           <select
             value={state.scenario}
             title={SCENARIO_HINTS[state.scenario]}
-            onChange={(event) =>
+            onChange={(event) => {
+              const scenario = event.target.value as ScenarioId
               dispatch({
                 type: 'LOAD_SCENARIO',
-                scenario: event.target.value as ScenarioId,
+                scenario,
+                // Код придумывает адаптер, а не домен: внутри домена
+                // источников случайности нет.
+                seed: scenario === 'live' ? createSeedCode() : undefined,
               })
-            }
+            }}
           >
             {SCENARIOS.map((scenario) => (
               <option key={scenario} value={scenario}>
@@ -112,6 +124,16 @@ export function TopBar({
             ))}
           </select>
         </label>
+
+        {/* Код смены — служебная подпись. Он не должен спорить за внимание
+            с рангом портала и кнопками решений, поэтому стоит под
+            переключателем мелким шрифтом. */}
+        {state.live && (
+          <p className="seedtag">
+            <span className="seedtag__label">Код смены</span>
+            <code className="seedtag__value">{state.live.seed}</code>
+          </p>
+        )}
 
         <button type="button" className="btn btn--ghost" onClick={onShowIntro}>
           Как это работает
@@ -147,6 +169,14 @@ export function TopBar({
               <span className="cycle__forecast-label">Через цикл</span>
               {forecast.headline}
             </p>
+            {/* Событие живой смены объявляется здесь же и заранее: никаких
+                внезапных окон после нажатия. */}
+            {forecast.event && forecast.eventText && (
+              <p className={`cycle__event cycle__event--${forecast.event.tone}`}>
+                <span className="cycle__event-label">{forecast.event.title}</span>
+                {forecast.eventText}
+              </p>
+            )}
             <button
               type="button"
               className="btn btn--primary"

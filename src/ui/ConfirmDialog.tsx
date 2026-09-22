@@ -33,7 +33,14 @@ export function ConfirmDialog() {
     } else if (pending.action === 'NEXT_CYCLE') {
       dispatch({ type: 'NEXT_CYCLE', confirmed: true })
     } else if (pending.action === 'LOAD_SCENARIO' && pending.scenario) {
-      dispatch({ type: 'LOAD_SCENARIO', scenario: pending.scenario, confirmed: true })
+      // Код смены обязан пережить подтверждение: иначе «да» на вопрос о
+      // сбросе открыло бы не ту живую смену, которую выбрали.
+      dispatch({
+        type: 'LOAD_SCENARIO',
+        scenario: pending.scenario,
+        seed: pending.seed,
+        confirmed: true,
+      })
     }
   }
 

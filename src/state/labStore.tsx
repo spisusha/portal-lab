@@ -13,13 +13,14 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useMemo,
   useReducer,
   type Dispatch,
   type ReactNode,
 } from 'react'
 import { labReducer } from '../domain/reducer'
-import { createInitialState } from '../domain/seed'
+import { createInitialState, createScenario } from '../domain/seed'
 import {
   buildSummary,
   buildShiftSummary,
@@ -31,7 +32,11 @@ import {
 import { buildFocus, type FocusSituation } from '../domain/focus'
 import { buildForecast, type CycleForecast } from '../domain/forecast'
 import { diffStates, type PortalChange } from '../domain/diff'
+import { computeLiveScore, type LiveScore } from '../domain/live/score'
+import { buildDebrief, debriefHeadline, type DebriefRow } from '../domain/live/debrief'
+import { evaluateDirective, type DirectiveResult } from '../domain/live/directives'
 import type { LabAction, LabState } from '../domain/types'
+import { readShiftLink, syncShiftUrl } from './liveSeed'
 
 interface Tracked {
   state: LabState
@@ -74,20 +79,49 @@ interface LabContextValue {
   change: LabChange | null
   shiftSummary: ShiftSummary
   lastAction: LabAction['type'] | null
+  /** Итог живой смены: счёт, ранг и разбор по блокам. `null` — демо-режим. */
+  liveScore: LiveScore | null
+  /** Директива смены и её текущее состояние. `null` — демо-режим. */
+  directive: DirectiveResult | null
+  /** Хроника принятых решений. Пуста вне живой смены. */
+  debrief: DebriefRow[]
+  debriefHeadline: string
 }
 
 const LabContext = createContext<LabContextValue | null>(null)
 
+/**
+ * Состояние на старте.
+ *
+ * Ссылка вида `?mode=live&seed=PL-7K42` обязана открыть ровно ту смену,
+ * на которую ссылались: разбор адреса делается один раз здесь, а не в
+ * эффекте после первого рендера, иначе человек увидел бы штатную смену
+ * и только потом подмену.
+ */
+function openingState(): LabState {
+  const link = readShiftLink()
+  return link ? createScenario('live', link.seed) : createInitialState()
+}
+
 export function LabProvider({ children }: { children: ReactNode }) {
   const [tracked, dispatch] = useReducer(trackingReducer, undefined, () => ({
-    state: createInitialState(),
+    state: openingState(),
     previous: null,
     step: 0,
     lastAction: null,
   }))
 
+  const seedInUrl = tracked.state.scenario === 'live' ? tracked.state.live?.seed ?? null : null
+
+  // Адресная строка всегда показывает текущую смену: из неё можно уйти в
+  // закладки или переслать её, не нажимая «Поделиться».
+  useEffect(() => {
+    syncShiftUrl(seedInUrl)
+  }, [seedInUrl])
+
   const value = useMemo<LabContextValue>(() => {
     const { state, previous, step, lastAction } = tracked
+    const rows = buildDebrief(state)
     return {
       state,
       dispatch,
@@ -101,6 +135,10 @@ export function LabProvider({ children }: { children: ReactNode }) {
           : null,
       shiftSummary: buildShiftSummary(state),
       lastAction,
+      liveScore: computeLiveScore(state),
+      directive: state.live ? evaluateDirective(state.live.directive, state) : null,
+      debrief: rows,
+      debriefHeadline: debriefHeadline(rows),
     }
   }, [tracked])
 

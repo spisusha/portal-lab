@@ -2497,6 +2497,369 @@ input {
   .complete__metrics { grid-template-columns: minmax(0, 1fr); }
 }
 
+/* ------------------------------------------------------------------
+   ЖИВАЯ СМЕНА (v1.1)
+
+   Новые механики встроены в существующие области, а не получили по
+   собственной панели: код смены живёт под переключателем режима,
+   особенность мира — под названием мира, директива — под прогрессом,
+   событие — внутри блока «Через цикл».
+
+   Опасность и успех по-прежнему не кодируются одним цветом: у директивы
+   есть подпись словом, у события — название, у ранга смены — буква,
+   слово и число.
+   ------------------------------------------------------------------ */
+
+/* Код смены: служебная подпись, не соперник рангу и кнопкам. */
+.seedtag {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  margin: var(--s2) 0 0;
+  font-size: 12px;
+  color: var(--bone-faint);
+}
+
+.seedtag__label {
+  letter-spacing: 0.02em;
+}
+
+.seedtag__value {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: var(--bone-dim);
+  border-bottom: 1px dotted var(--line);
+}
+
+/* Событие следующего перехода — внутри существующего блока прогноза. */
+.cycle__event {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s2);
+  margin: var(--s2) 0 0;
+  padding-top: var(--s2);
+  border-top: 1px solid var(--line-soft);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--bone-dim);
+}
+
+.cycle__event-label {
+  font-family: var(--display);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bone-faint);
+  border-left: 2px solid var(--line);
+  padding-left: var(--s2);
+}
+
+.cycle__event--good .cycle__event-label {
+  border-left-color: var(--jade);
+  color: var(--jade);
+}
+
+.cycle__event--bad .cycle__event-label {
+  border-left-color: var(--amber);
+  color: var(--amber);
+}
+
+.cycle__event--neutral .cycle__event-label {
+  border-left-color: var(--bone-faint);
+}
+
+/* Особенность мира — вплотную к его названию, до любых кнопок. */
+.camera__trait {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s2);
+  margin: var(--s1) 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.camera__trait-name {
+  font-family: var(--display);
+  letter-spacing: 0.04em;
+  color: var(--jade);
+}
+
+.camera__trait-effect {
+  color: var(--bone-dim);
+}
+
+/* Та же особенность в строке очереди: выбор делается здесь. */
+.slot__trait {
+  display: block;
+  margin-top: var(--s1);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--bone-faint);
+  border-left: 2px solid var(--line);
+  padding-left: var(--s2);
+}
+
+.slot--open .slot__trait {
+  color: var(--bone-dim);
+  border-left-color: var(--jade-line);
+}
+
+/* Директива смены. */
+.directive {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s2) var(--s3);
+  margin: 0;
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  background: var(--ink-850);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--bone-dim);
+}
+
+.directive--pending { border-left-color: var(--amber); }
+.directive--met { border-left-color: var(--jade); }
+.directive--missed { border-left-color: var(--crimson); }
+.directive--result { margin-top: var(--s5); }
+
+.directive__label {
+  flex: none;
+  font-family: var(--display);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bone-faint);
+}
+
+.directive--met .directive__label { color: var(--jade); }
+.directive--missed .directive__label { color: var(--crimson); }
+
+.directive__text { color: var(--bone); }
+.directive__rule { color: var(--bone-faint); }
+
+/* Итог живой смены. */
+.complete--live .complete__eyebrow code {
+  font-family: var(--mono);
+  letter-spacing: 0.08em;
+  color: var(--bone-dim);
+}
+
+.complete__mark--rank-S { background: var(--jade-bright); }
+.complete__mark--rank-A { background: var(--jade); }
+.complete__mark--rank-B { background: var(--rank-d); }
+.complete__mark--rank-C { background: var(--amber); }
+.complete__mark--rank-D { background: var(--crimson); }
+
+.complete__section {
+  margin: var(--s6) 0 var(--s3);
+  font-family: var(--display);
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  color: var(--bone);
+}
+
+.complete__copied {
+  margin: var(--s3) 0 0;
+  min-height: 1.4em;
+  font-size: 13px;
+  color: var(--jade);
+  overflow-wrap: anywhere;
+}
+
+/* Ранг смены: буква, слово и число рядом — ни один знак не единственный. */
+.verdict {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  margin: var(--s4) 0 0;
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--line);
+  background: var(--ink-800);
+}
+
+.verdict__rank {
+  font-family: var(--display);
+  font-size: 44px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--bone);
+}
+
+.verdict__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
+
+.verdict__label {
+  font-family: var(--display);
+  font-size: 17px;
+  color: var(--bone);
+}
+
+.verdict__score {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--bone-dim);
+}
+
+.verdict--S { border-left: 3px solid var(--jade-bright); }
+.verdict--A { border-left: 3px solid var(--jade); }
+.verdict--B { border-left: 3px solid var(--rank-d); }
+.verdict--C { border-left: 3px solid var(--amber); }
+.verdict--D { border-left: 3px solid var(--crimson); }
+
+.verdict--S .verdict__rank { color: var(--jade-bright); }
+.verdict--A .verdict__rank { color: var(--jade); }
+.verdict--B .verdict__rank { color: var(--rank-d); }
+.verdict--C .verdict__rank { color: var(--amber); }
+.verdict--D .verdict__rank { color: var(--crimson); }
+
+/* Шкала рангов смены. Свой набор классов: здесь S — лучшее, а не худшее,
+   и общий цвет со шкалой риска сказал бы обратное. */
+.scale__step--live-S .scale__rank { color: var(--jade-bright); }
+.scale__step--live-A .scale__rank { color: var(--jade); }
+.scale__step--live-B .scale__rank { color: var(--rank-d); }
+.scale__step--live-C .scale__rank { color: var(--amber); }
+.scale__step--live-D .scale__rank { color: var(--crimson); }
+
+/* Разбор счёта по блокам. */
+.tally-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.tally-list__row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  padding: var(--s3) 0 0;
+  border-top: 1px solid var(--line-soft);
+}
+
+.tally-list__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s2);
+}
+
+.tally-list__title {
+  font-family: var(--display);
+  font-size: 14px;
+  color: var(--bone);
+}
+
+.tally-list__points {
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--bone);
+}
+
+.tally-list__max {
+  color: var(--bone-faint);
+  font-size: 12px;
+}
+
+.tally-list__bar {
+  display: block;
+  height: 3px;
+  background: var(--ink-700);
+}
+
+.tally-list__fill {
+  display: block;
+  height: 100%;
+  background: var(--jade);
+}
+
+.tally-list__why {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--bone-dim);
+}
+
+/* Хроника решений. Нейтральная по тону: это разбор, а не оценка. */
+.debrief {
+  list-style: none;
+  margin: var(--s3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.debrief__row {
+  display: flex;
+  gap: var(--s3);
+  padding-left: var(--s3);
+  border-left: 2px solid var(--line);
+}
+
+.debrief__row--same { border-left-color: var(--jade-line); }
+.debrief__row--different { border-left-color: var(--amber-line); }
+
+.debrief__cycle {
+  flex: none;
+  min-width: 68px;
+  padding-top: 2px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--bone-faint);
+}
+
+.debrief__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  min-width: 0;
+}
+
+.debrief__portal {
+  font-family: var(--display);
+  font-size: 14px;
+  color: var(--bone);
+}
+
+.debrief__action {
+  font-size: 13px;
+  color: var(--bone);
+}
+
+.debrief__note { color: var(--bone-faint); }
+
+.debrief__advice,
+.debrief__outcome {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--bone-dim);
+}
+
+.debrief__outcome {
+  font-family: var(--mono);
+  color: var(--bone-faint);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 560px) {
+  .directive { flex-direction: column; gap: var(--s1); }
+  .debrief__row { flex-direction: column; gap: var(--s1); }
+  .debrief__cycle { min-width: 0; }
+  .verdict { gap: var(--s3); }
+  .verdict__rank { font-size: 34px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
