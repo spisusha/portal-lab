@@ -108,6 +108,23 @@ describe('конечная смена и одно решение за цикл',
 
     let losses = confirmCycle(createScenario('critical'))
     expect(buildShiftSummary(losses).outcome).toBe('losses')
+
+    // «Отлично» остаётся за сменой, где порталы были и все ушли без потерь:
+    // пустая лаборатория сюда больше не попадает.
+    const base = createScenario('standard')
+    const clean = {
+      ...base,
+      portals: base.portals.map((item) => ({
+        ...item,
+        status: 'CLOSED' as const,
+        creaturesInside: 0,
+        creaturesLost: 0,
+      })),
+      finishedAtMinutes: 90,
+      unresolvedAtEnd: 0,
+    }
+    expect(buildShiftSummary(clean).startedPortals).toBeGreaterThan(0)
+    expect(buildShiftSummary(clean).outcome).toBe('excellent')
   })
 
   it('не оставляет действий после завершения смены', () => {
