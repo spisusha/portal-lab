@@ -478,12 +478,18 @@ describe('прогноз и служебные разделы', () => {
 
     expect(screen.getByRole('heading', { name: 'AI Worklog' })).toBeTruthy()
     const toc = screen.getByRole('navigation', { name: 'Разделы отчёта' })
+    // Разделы, которых задание требует буквально: инструменты, этапы,
+    // собственные решения, ручные доработки, проверка и планы на реальный
+    // продукт. Если какой-то из них снова пропадёт из отчёта — тест упадёт.
     for (const section of [
       'Коротко о проекте',
       'Инструменты',
       'Этапы разработки',
-      'Ключевые запросы к AI',
+      'Где AI ошибался',
+      'Решения, которые принял я',
+      'Что дорабатывалось после проверки',
       'Как проверялось',
+      'Что улучшил бы в реальном продукте',
     ]) {
       expect(within(toc).getByRole('link', { name: section })).toBeTruthy()
     }
@@ -495,7 +501,15 @@ describe('прогноз и служебные разделы', () => {
     expect(screen.getByText('198 автоматических тестов в 15 файлах')).toBeTruthy()
 
     // Отчёт остаётся отчётом, а не стеной текста: подробности спрятаны.
-    expect(screen.getAllByText('Технические подробности').length).toBeGreaterThan(0)
+    const details = screen.getAllByText('Что делал я, что делал AI и по какому промпту')
+    expect(details.length).toBe(6)
+
+    // Задание требует по каждому этапу показать роли и ключевой промпт.
+    await user.click(details[0])
+    const stage = details[0].closest('details') as HTMLDetailsElement
+    expect(within(stage).getByText('Я')).toBeTruthy()
+    expect(within(stage).getByText('AI')).toBeTruthy()
+    expect(stage.querySelector('.stage__prompt')?.textContent).toMatch(/^«.+»$/)
   })
 
   it('AI Worklog описывает оба способа движения времени и не противоречит интерфейсу', async () => {

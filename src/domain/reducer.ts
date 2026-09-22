@@ -460,7 +460,7 @@ function completeShift(
         ? { ...state.live, science: [...state.live.science, ...held] }
         : state.live,
   }
-  const what = state.scenario === 'live' ? 'Живая смена' : 'Демо-смена'
+  const what = state.scenario === 'live' ? 'Живая смена' : 'Учебная смена'
   return withLog(finished, [
     {
       kind: reason === 'cycles' ? 'system' : 'warning',

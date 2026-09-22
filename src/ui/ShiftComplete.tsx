@@ -1,7 +1,7 @@
 import { formatClock } from '../domain/types'
 import { useLab } from '../state/labStore'
 
-/** Финальный экран демонстрационной смены: результат важнее красивой фразы. */
+/** Финальный экран учебного сценария: результат важнее красивой фразы. */
 export function ShiftComplete({
   showLog,
   onShowLog,
@@ -51,7 +51,7 @@ export function ShiftComplete({
       )}
       <p className="complete__explanation">{shiftSummary.explanation}</p>
       <p className="complete__note">
-        Демонстрационная смена ограничена шестью циклами по 15 минут — это короткий сценарий для проверки решений, а не восьмичасовая рабочая смена.
+        Учебная смена ограничена шестью циклами по 15 минут — это короткий сценарий для проверки решений, а не восьмичасовая рабочая смена.
       </p>
 
       <dl className="complete__metrics">

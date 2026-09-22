@@ -2171,7 +2171,37 @@ input {
   gap: var(--s3);
 }
 
-.prompts .stage__prompt {
+.prompts /* «Что делал я / что делал AI» внутри этапа: две подписанные строки,
+   а не абзац, в котором роли приходится вылавливать глазами. */
+.split {
+  margin: var(--s2) 0 0;
+  display: grid;
+  gap: var(--s2);
+}
+
+.split > div {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: var(--s3);
+  align-items: baseline;
+}
+
+.split dt {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--jade);
+}
+
+.split dd {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--bone-dim);
+}
+
+.stage__prompt {
   margin: 0;
 }
 
