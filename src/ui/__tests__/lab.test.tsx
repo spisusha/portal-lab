@@ -9,8 +9,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { App } from '../../App'
-import { LabProvider } from '../../state/labStore'
+import { AppRoot } from '../../AppRoot'
 import { ONBOARDING_STORAGE_KEY } from '../Onboarding'
 
 // jsdom не реализует прокрутку, а переход «Открыть карточку» её вызывает.
@@ -22,11 +21,7 @@ beforeEach(() => {
 afterEach(cleanup)
 
 function renderApp() {
-  return render(
-    <LabProvider>
-      <App />
-    </LabProvider>,
-  )
+  return render(<AppRoot />)
 }
 
 /** Пройти вступление, как это делает человек при первом открытии. */
@@ -45,8 +40,13 @@ describe('первый запуск', () => {
     expect(screen.getByText(/нейтральные живые обитатели/)).toBeTruthy()
 
     await user.click(screen.getByRole('button', { name: 'Далее' }))
-    expect(screen.getByText(/Сначала прочитайте состояние/)).toBeTruthy()
-    expect(screen.getByText(/стабильность, энергию, время и существ/)).toBeTruthy()
+    expect(screen.getByText('Оцените состояние портала')).toBeTruthy()
+    // Инструкция обязана описывать ту же шкалу, что и весь остальной
+    // интерфейс: до версии 1.1 здесь стояло «S / A / B», хотя рангов шесть.
+    const ranks = screen.getByText(/Риск от 0 до 100 и ранг от E до S/)
+    expect(ranks.textContent).toContain('E — минимальный риск, S — критический')
+    expect(ranks.textContent).toContain('стабильность, энергию, время до схлопывания')
+    expect(ranks.textContent).not.toMatch(/S \/ A \/ B/)
 
     await user.click(screen.getByRole('button', { name: 'Далее' }))
     expect(screen.getByText(/Одно решение за цикл/)).toBeTruthy()
@@ -140,7 +140,7 @@ describe('запреты объясняются до нажатия', () => {
     await skipIntro(user)
 
     await user.selectOptions(
-      screen.getByLabelText('Демо-сценарий'),
+      screen.getByLabelText('Режим смены'),
       'critical',
     )
 
@@ -268,7 +268,7 @@ describe('пустая лаборатория', () => {
     renderApp()
     await skipIntro(user)
 
-    await user.selectOptions(screen.getByLabelText('Демо-сценарий'), 'empty')
+    await user.selectOptions(screen.getByLabelText('Режим смены'), 'empty')
 
     expect(screen.getByRole('heading', { name: 'Лаборатория пуста' })).toBeTruthy()
     expect(screen.getByText('На начало смены активных порталов нет. Решения не требуются, смена завершена досрочно.')).toBeTruthy()
@@ -353,7 +353,7 @@ describe('прогноз и служебные разделы', () => {
     const user = userEvent.setup()
     renderApp()
     await skipIntro(user)
-    await user.selectOptions(screen.getByLabelText('Демо-сценарий'), 'empty')
+    await user.selectOptions(screen.getByLabelText('Режим смены'), 'empty')
 
     expect(screen.getAllByText('Смена завершена').length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: /Следующий цикл/ })).toBeNull()
@@ -364,14 +364,14 @@ describe('прогноз и служебные разделы', () => {
     const user = userEvent.setup()
     renderApp()
     await skipIntro(user)
-    await user.selectOptions(screen.getByLabelText('Демо-сценарий'), 'critical')
+    await user.selectOptions(screen.getByLabelText('Режим смены'), 'critical')
     await user.click(screen.getByRole('button', { name: /Следующий цикл/ }))
     await user.click(
       within(screen.getByRole('alertdialog')).getByRole('button', {
         name: /перейти к циклу/,
       }),
     )
-    await user.selectOptions(screen.getByLabelText('Демо-сценарий'), 'standard')
+    await user.selectOptions(screen.getByLabelText('Режим смены'), 'standard')
 
     expect(screen.queryByText(/Схлопнулся.*Открыт/)).toBeNull()
   })
@@ -381,7 +381,11 @@ describe('прогноз и служебные разделы', () => {
     renderApp()
     await skipIntro(user)
 
-    expect(screen.getByText(/Сильнее всех просядет «Врата №19/)).toBeTruthy()
+    expect(
+      screen.getByText(
+        'В следующем цикле ни один портал не схлопнется. Сильнее всего ухудшится состояние «Врата №19 — Полая звезда»: риск 72 → 76.',
+      ),
+    ).toBeTruthy()
     expect(screen.getAllByText(/риск 72 → 76/).length).toBeGreaterThan(0)
   })
 
@@ -390,7 +394,7 @@ describe('прогноз и служебные разделы', () => {
     renderApp()
     await skipIntro(user)
 
-    await user.selectOptions(screen.getByLabelText('Демо-сценарий'), 'critical')
+    await user.selectOptions(screen.getByLabelText('Режим смены'), 'critical')
     expect(screen.getByText(/схлопнется «Врата №14 — Последний маяк»/)).toBeTruthy()
 
     // Предупреждение не блокирует демонстрацию последствия.
@@ -402,7 +406,7 @@ describe('прогноз и служебные разделы', () => {
     expect(feedback.textContent).toContain('Схлопнулся')
   })
 
-  it('открывает читаемый AI Worklog с содержанием и незаполненными полями', async () => {
+  it('открывает читаемый AI Worklog: содержание, цифры и подробности под раскрытием', async () => {
     const user = userEvent.setup()
     renderApp()
     await skipIntro(user)
@@ -410,9 +414,44 @@ describe('прогноз и служебные разделы', () => {
     await user.click(screen.getByRole('button', { name: 'AI Worklog' }))
 
     expect(screen.getByRole('heading', { name: 'AI Worklog' })).toBeTruthy()
-    expect(screen.getByRole('navigation', { name: 'Разделы отчёта' })).toBeTruthy()
-    expect(screen.getByText('Общее время разработки')).toBeTruthy()
+    const toc = screen.getByRole('navigation', { name: 'Разделы отчёта' })
+    for (const section of [
+      'Коротко о проекте',
+      'Инструменты',
+      'Этапы разработки',
+      'Ключевые запросы к AI',
+      'Как проверялось',
+    ]) {
+      expect(within(toc).getByRole('link', { name: section })).toBeTruthy()
+    }
+
+    expect(screen.getByText('Время разработки')).toBeTruthy()
     expect(screen.getByText('Израсходовано токенов')).toBeTruthy()
+    expect(screen.getByText(/автоматических тестов в/)).toBeTruthy()
+
+    // Отчёт остаётся отчётом, а не стеной текста: подробности спрятаны.
+    expect(screen.getAllByText('Технические подробности').length).toBeGreaterThan(0)
+  })
+
+  it('AI Worklog описывает оба способа движения времени и не противоречит интерфейсу', async () => {
+    const user = userEvent.setup()
+    renderApp()
+    await skipIntro(user)
+    await user.click(screen.getByRole('button', { name: 'AI Worklog' }))
+
+    const time = screen.getByText(/В учебных сценариях время движется вручную/)
+    expect(time.textContent).toContain('15 лабораторных минут проходят за 60 реальных секунд')
+    expect(time.textContent).toContain('ставится на паузу')
+
+    // Прежнее утверждение «время движется только по кнопке» стало неверным
+    // и не должно остаться нигде на экране.
+    const worklog = screen.getByRole('article')
+    expect(worklog.textContent).not.toContain(
+      'Время движется по кнопке «Следующий цикл», а не автоматически',
+    )
+    expect(worklog.textContent).not.toMatch(/раздел писался по ходу работы/i)
+    expect(worklog.textContent).not.toMatch(/токены не выдумыва/i)
+    expect(worklog.textContent).not.toMatch(/доработал бы дальше/i)
   })
 
   // Активная вкладка должна читаться не только глазами: состояние идёт

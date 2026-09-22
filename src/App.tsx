@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { useLab } from './state/labStore'
+import { useClockBlock } from './state/liveClock'
 import { TopBar, type Tab } from './ui/TopBar'
 import { PortalCamera } from './ui/PortalCamera'
 import { DecisionBench } from './ui/DecisionBench'
@@ -11,6 +12,7 @@ import { ConfirmDialog } from './ui/ConfirmDialog'
 import { Onboarding, useOnboarding } from './ui/Onboarding'
 import { WorklogScreen } from './ui/WorklogScreen'
 import { ShiftComplete } from './ui/ShiftComplete'
+import { LiveComplete } from './ui/LiveComplete'
 import { currentCycle, isActive } from './domain/types'
 
 /**
@@ -28,11 +30,19 @@ import { currentCycle, isActive } from './domain/types'
  * а не человеку.
  */
 export function App() {
-  const { portals, summary, state, dispatch } = useLab()
+  const { portals, summary, state, dispatch, directive } = useLab()
   const [tab, setTab] = useState<Tab>('lab')
   const [manualId, setManualId] = useState<string | null>(null)
   const [showFinalLog, setShowFinalLog] = useState(false)
   const intro = useOnboarding()
+
+  // Время живой смены не идёт, пока человек читает. Порталы не имеют права
+  // схлопываться за спиной у того, кто открыл инструкцию или ушёл в отчёт.
+  useClockBlock('intro', intro.open ? 'Таймер приостановлен, пока открыта инструкция.' : null)
+  useClockBlock(
+    'worklog',
+    tab === 'worklog' ? 'Таймер приостановлен, пока открыт AI Worklog.' : null,
+  )
 
   // Если выбранный портал исчез при смене сценария, показываем самый
   // опасный из активных — камера не должна оставаться пустой.
@@ -72,15 +82,29 @@ export function App() {
       <div className="shell">
         <TopBar tab={tab} onTabChange={setTab} onShowIntro={intro.show} />
         <main className="deck deck--complete">
-          <ShiftComplete
-            showLog={showFinalLog}
-            onShowLog={() => setShowFinalLog(true)}
-            onRestart={() => {
-              setShowFinalLog(false)
-              setManualId(null)
-              dispatch({ type: 'LOAD_SCENARIO', scenario: state.scenario, confirmed: true })
-            }}
-          />
+          {/* Живая смена получает свой итог: счёт, ранг и разбор решений.
+              Демонстрационным сценариям всё это не нужно — их задача
+              показать краевые случаи, а не соревноваться. */}
+          {state.scenario === 'live' ? (
+            <LiveComplete
+              showLog={showFinalLog}
+              onShowLog={() => setShowFinalLog(true)}
+              onReset={() => {
+                setShowFinalLog(false)
+                setManualId(null)
+              }}
+            />
+          ) : (
+            <ShiftComplete
+              showLog={showFinalLog}
+              onShowLog={() => setShowFinalLog(true)}
+              onRestart={() => {
+                setShowFinalLog(false)
+                setManualId(null)
+                dispatch({ type: 'LOAD_SCENARIO', scenario: state.scenario, confirmed: true })
+              }}
+            />
+          )}
           {showFinalLog && <Archive portalId={null} />}
         </main>
       </div>
@@ -105,6 +129,23 @@ export function App() {
               </span>
             )}
           </div>
+
+          {/* Директива стоит вплотную к прогрессу смены и не заводит себе
+              отдельной панели: это вторая задача, а не вторая цель. */}
+          {directive && (
+            <p
+              className={`directive directive--${directive.met ? 'met' : 'pending'}`}
+              aria-label={`Директива смены: ${directive.directive.title}`}
+            >
+              <span className="directive__label">
+                Директива {directive.met ? '· выполняется' : '· пока не выполнена'}
+              </span>
+              <span className="directive__text">
+                {directive.directive.title}
+                <span className="directive__rule"> — {directive.directive.rule}</span>
+              </span>
+            </p>
+          )}
           <PortalCamera
             portalId={selectedId}
             onSelect={select}

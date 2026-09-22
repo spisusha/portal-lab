@@ -11,6 +11,7 @@
 import type { ActionCheck, Portal, PortalActionKind } from './types'
 import { STATUS_LABELS, isActive } from './types'
 import { computeRisk, isCriticalRank } from './risk'
+import { traitOf } from './live/worlds'
 
 /** Предел контура стабилизации: выше 95 стабильность поднять нельзя. */
 export const MAX_STABILITY = 95
@@ -25,6 +26,25 @@ const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value))
 
 /**
+ * Насколько стабилизация подействует именно на этот портал.
+ *
+ * У демонстрационных порталов особенности нет, поэтому возвращаются те же
+ * +25 и −10, что и в версии 1.0. В «Живой смене» особенность мира может
+ * подменить любое из двух чисел — и ровно они написаны рядом с названием
+ * мира и в строке последствия на кнопке.
+ */
+export function stabilizePower(portal: Portal): {
+  step: number
+  energyDrop: number
+} {
+  const trait = traitOf(portal.trait)
+  return {
+    step: trait?.stabilizeStep ?? STABILIZE_STEP,
+    energyDrop: trait?.stabilizeEnergyDrop ?? STABILIZE_ENERGY_DROP,
+  }
+}
+
+/**
  * Портал после стабилизации — без записи в историю и журнал.
  *
  * Нужна в двух местах: редьюсер применяет результат, а панель решения
@@ -32,10 +52,11 @@ const clamp = (value: number, min: number, max: number) =>
  * на оба случая — чтобы обещание интерфейса не разошлось с делом.
  */
 export function applyStabilize(portal: Portal): Portal {
+  const power = stabilizePower(portal)
   return {
     ...portal,
-    stability: clamp(portal.stability + STABILIZE_STEP, 0, MAX_STABILITY),
-    energy: clamp(portal.energy - STABILIZE_ENERGY_DROP, 0, 100),
+    stability: clamp(portal.stability + power.step, 0, MAX_STABILITY),
+    energy: clamp(portal.energy - power.energyDrop, 0, 100),
   }
 }
 

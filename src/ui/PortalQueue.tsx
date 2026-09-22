@@ -1,6 +1,7 @@
 import { useLab } from '../state/labStore'
 import { STATUS_LABELS, currentCycle, formatClock, formatCountdown, isActive } from '../domain/types'
 import type { PortalWithRisk } from '../domain/summary'
+import { traitOf } from '../domain/live/worlds'
 import { WorldCrest } from './WorldScene'
 
 /**
@@ -105,6 +106,7 @@ function Slot({
   cycle: number
 }) {
   const { portal, risk } = item
+  const trait = traitOf(portal.trait)
   const terminal = !isActive(portal)
   const critical = risk.applicable && (risk.rank === 'A' || risk.rank === 'S')
 
@@ -150,6 +152,13 @@ function Slot({
             <> · {formatCountdown(portal.minutesToCollapse)} до схлопывания</>
           )}
         </span>
+        {/* Особенность мира видна прямо в очереди: выбирать портал приходится
+            здесь, а не после открытия карточки. */}
+        {trait && (
+          <span className="slot__trait" title={trait.effect}>
+            {trait.title}
+          </span>
+        )}
         {critical && !terminal && (
           <span className="slot__flag">требует решения</span>
         )}

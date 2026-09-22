@@ -186,6 +186,7 @@ input {
 
 /* Числа не должны прыгать при пересчёте цикла. */
 .topbar__clock-value,
+.livetime__value,
 .gauge__rank,
 .gauge__score,
 .vital__value,
@@ -215,6 +216,7 @@ input {
   grid-template-columns: minmax(0, 1fr) auto auto;
   grid-template-areas:
     'identity state tools'
+    'identity state mode'
     'deck     deck  deck';
   gap: var(--s3) var(--s5);
   align-items: center;
@@ -354,7 +356,16 @@ input {
   display: flex;
   gap: var(--s2);
   align-items: center;
+  justify-content: flex-end;
   flex-wrap: wrap;
+}
+
+.picker optgroup {
+  background: var(--ink-800);
+  color: var(--bone-faint);
+  font-style: normal;
+  font-size: 12px;
+  letter-spacing: 0.04em;
 }
 
 .picker {
@@ -488,7 +499,17 @@ input {
 .deck {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
+  /*
+    Полоса цели и директива стоят первой строкой сетки, а не падают в
+    неявный ряд под остальным. До версии 1.1 у .shift-progress была только
+    grid-column, поэтому автоматическое размещение уносило её под архив:
+    в разметке цель стояла первой, а на экране оказывалась последней.
+    Заметно это стало, когда рядом с прогрессом появилась директива, —
+    задачу смены человек обязан видеть до решений, а не после.
+  */
   grid-template-areas:
+    'goal   goal'
+    'orders orders'
     'camera rail'
     'bench  rail'
     'archive archive';
@@ -2038,6 +2059,59 @@ input {
   font-size: 14px;
 }
 
+/* Перечисление внутри раскрытого блока: без линеек, иначе подробности
+   выглядят важнее самого этапа. */
+.facts--plain li {
+  padding: 2px 0;
+  border-bottom: 0;
+  font-size: 14.5px;
+}
+
+/* Две колонки ответственности: кто что делал — читается парой, а не
+   двумя списками подряд. */
+.worklog__split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s5);
+}
+
+.worklog__subtitle {
+  margin: 0 0 var(--s2);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--bone);
+}
+
+.prompts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s3);
+}
+
+.prompts .stage__prompt {
+  margin: 0;
+}
+
+.worklog__code {
+  margin: 0 0 var(--s3);
+  padding: var(--s3);
+  border: 1px solid var(--line);
+  background: var(--ink-850);
+  overflow-x: auto;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.worklog__code code {
+  background: transparent;
+  padding: 0;
+  color: var(--bone-dim);
+  white-space: pre;
+}
+
 .stages {
   list-style: none;
   margin: 0;
@@ -2141,6 +2215,8 @@ input {
   .deck {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
+      'goal'
+      'orders'
       'camera'
       'bench'
       'rail'
@@ -2159,12 +2235,20 @@ input {
       'identity'
       'state'
       'tools'
+      'mode'
       'deck';
     align-items: start;
   }
 
+
   .topbar__state {
     flex-wrap: wrap;
+  }
+
+  /* В одну колонку переключатель и подсказка разъезжаются по краям строки,
+     иначе слева остаётся широкая пустота. */
+  .topbar__tools {
+    justify-content: space-between;
   }
 
   .worklog {
@@ -2236,6 +2320,7 @@ input {
     gap: var(--s2);
   }
 
+
   .topbar__deck {
     align-items: stretch;
   }
@@ -2248,6 +2333,11 @@ input {
   .spec > div {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--s1);
+  }
+
+  .worklog__split {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s4);
   }
 }
 
@@ -2272,6 +2362,7 @@ input {
   .topbar__tools .btn {
     width: 100%;
   }
+
 
   .picker {
     justify-content: space-between;
@@ -2349,7 +2440,7 @@ input {
 /* ======================= Цикл и финал смены ============================ */
 
 .shift-progress {
-  grid-column: 1 / -1;
+  grid-area: goal;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -2495,6 +2586,610 @@ input {
 
 @media (max-width: 430px) {
   .complete__metrics { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ------------------------------------------------------------------
+   ЖИВАЯ СМЕНА (v1.1)
+
+   Новые механики встроены в существующие области, а не получили по
+   собственной панели: код смены живёт под переключателем режима,
+   особенность мира — под названием мира, директива — под прогрессом,
+   событие — внутри блока «Через цикл».
+
+   Опасность и успех по-прежнему не кодируются одним цветом: у директивы
+   есть подпись словом, у события — название, у ранга смены — буква,
+   слово и число.
+   ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------
+   Карточка режима под переключателем.
+
+   Задача — за несколько секунд объяснить, где человек находится. Поэтому
+   блок узкий, в три строки и с кромкой слева: учебный сценарий — костяная,
+   живая смена — нефритовая. Он не имеет права разрастаться: половина
+   первого экрана принадлежит порталу, а не объяснению.
+   ------------------------------------------------------------------ */
+.modecard {
+  grid-area: mode;
+  justify-self: end;
+  width: 100%;
+  max-width: 380px;
+  margin-top: var(--s2);
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--bone-faint);
+  background: var(--ink-800);
+}
+
+.modecard--live {
+  border-left-color: var(--jade);
+  background: linear-gradient(90deg, var(--jade-wash), var(--ink-800) 70%);
+}
+
+.modecard__label {
+  margin: 0;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--bone-faint);
+}
+
+.modecard--live .modecard__label {
+  color: var(--jade);
+}
+
+.modecard__title {
+  margin: 2px 0 0;
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.modecard__seed {
+  font-family: var(--mono);
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  color: var(--jade);
+}
+
+.modecard__text {
+  margin: var(--s1) 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--bone-dim);
+}
+
+.modecard__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  margin-top: var(--s2);
+}
+
+.modecard__action {
+  margin-top: var(--s2);
+}
+
+.modecard__controls .modecard__action {
+  margin-top: 0;
+}
+
+.modecard__timer {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+  flex: 1 1 150px;
+  font-size: 12.5px;
+  color: var(--bone-dim);
+}
+
+/* Состояние таймера читается не только цветом точки, но и текстом рядом. */
+.modecard__timer-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border: 1px solid var(--bone-faint);
+  border-radius: 50%;
+}
+
+.modecard__timer--on {
+  color: var(--bone);
+}
+
+.modecard__timer--on .modecard__timer-dot {
+  border-color: var(--jade);
+  background: var(--jade);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* ------------------------------------------------------------------
+   Отсчёт до следующего цикла.
+
+   Стоит на месте кнопки «Следующий цикл» и рядом с прогнозом: решение
+   пропустить остаток цикла принимают, прочитав, что после перехода
+   случится.
+   ------------------------------------------------------------------ */
+.livetime {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex: none;
+}
+
+.livetime--idle {
+  margin: 0;
+  max-width: 34ch;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--bone-faint);
+}
+
+.livetime__count {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  line-height: 1.15;
+}
+
+.livetime__label {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--bone-faint);
+}
+
+.livetime__value {
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--jade);
+  /* Табличные цифры: секунда меняется раз в секунду и не должна
+     подталкивать соседние элементы. */
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+.livetime__count--held .livetime__value {
+  color: var(--bone-faint);
+}
+
+.livetime__skip {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.livetime__hint {
+  font-size: 11px;
+  color: var(--bone-faint);
+  text-align: center;
+}
+
+/* Адаптив живой смены стоит после базовых правил, а не в общем блоке
+   «Адаптив» выше: там он оказался бы раньше по файлу и при одинаковой
+   специфичности проигрывал бы базовому описанию. Ошибка нашлась на
+   ширине 768 — карточка режима не растягивалась. */
+@media (max-width: 1000px) {
+  .modecard {
+    justify-self: stretch;
+    max-width: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .livetime {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--s2);
+  }
+
+  .livetime .btn {
+    width: 100%;
+  }
+
+  .livetime--idle {
+    max-width: none;
+  }
+}
+
+/* Разбор формулы на узком экране.
+
+   Колонка с арифметикой стоит `white-space: nowrap`, чтобы формула не
+   рвалась посреди умножения. На 360 px три колонки в неё не помещались, и
+   «0.35 × 75 = 26.3» обрезалось по краю ячейки. Видно это только глазами:
+   таблица шире своей колонки, а страница — нет, поэтому ни тесты, ни
+   измерение переполнения документа ошибку не ловят.
+
+   Разрешать перенос бессмысленно — формула распадалась на четыре огрызка.
+   Поэтому на телефоне строка таблицы разворачивается в три строки:
+   название, объяснение, арифметика. Заголовка у таблицы нет, так что
+   порядок читается сам собой. */
+@media (max-width: 560px) {
+  .ledger,
+  .ledger tbody,
+  .ledger tfoot,
+  .ledger tr,
+  .ledger th,
+  .ledger td {
+    display: block;
+  }
+
+  .ledger tr {
+    padding: var(--s2) 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+
+  .ledger th,
+  .ledger td {
+    padding: 0;
+    border-bottom: 0;
+  }
+
+  .ledger__why {
+    margin-top: 2px;
+  }
+
+  .ledger__math {
+    margin-top: var(--s1);
+    text-align: left;
+  }
+}
+
+@media (max-width: 560px) {
+  .modecard__controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  /* В колонке растягиваться нечему: без этого строка состояния тянулась
+     на всю свободную высоту и отрывала кнопку паузы от текста. */
+  .modecard__timer {
+    flex: none;
+  }
+
+  .modecard__controls .btn,
+  .modecard__action {
+    width: 100%;
+  }
+}
+
+/* Событие следующего перехода — внутри существующего блока прогноза. */
+.cycle__event {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s2);
+  margin: var(--s2) 0 0;
+  padding-top: var(--s2);
+  border-top: 1px solid var(--line-soft);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--bone-dim);
+}
+
+.cycle__event-label {
+  font-family: var(--display);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bone-faint);
+  border-left: 2px solid var(--line);
+  padding-left: var(--s2);
+}
+
+.cycle__event--good .cycle__event-label {
+  border-left-color: var(--jade);
+  color: var(--jade);
+}
+
+.cycle__event--bad .cycle__event-label {
+  border-left-color: var(--amber);
+  color: var(--amber);
+}
+
+.cycle__event--neutral .cycle__event-label {
+  border-left-color: var(--bone-faint);
+}
+
+/* Особенность мира — вплотную к его названию, до любых кнопок. */
+.camera__trait {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s2);
+  margin: var(--s1) 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.camera__trait-name {
+  font-family: var(--display);
+  letter-spacing: 0.04em;
+  color: var(--jade);
+}
+
+.camera__trait-effect {
+  color: var(--bone-dim);
+}
+
+/* Та же особенность в строке очереди: выбор делается здесь. */
+.slot__trait {
+  display: block;
+  margin-top: var(--s1);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--bone-faint);
+  border-left: 2px solid var(--line);
+  padding-left: var(--s2);
+}
+
+.slot--open .slot__trait {
+  color: var(--bone-dim);
+  border-left-color: var(--jade-line);
+}
+
+/* Директива смены. */
+.directive {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s2) var(--s3);
+  margin: 0;
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  background: var(--ink-850);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--bone-dim);
+}
+
+/* Директива живёт своей строкой сразу под целью смены — она вторая
+   задача, а не вторая цель, и отдельной панели ей не положено. */
+.deck > .directive { grid-area: orders; }
+
+.directive--pending { border-left-color: var(--amber); }
+.directive--met { border-left-color: var(--jade); }
+.directive--missed { border-left-color: var(--crimson); }
+.directive--result { margin-top: var(--s5); }
+
+.directive__label {
+  flex: none;
+  font-family: var(--display);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bone-faint);
+}
+
+.directive--met .directive__label { color: var(--jade); }
+.directive--missed .directive__label { color: var(--crimson); }
+
+.directive__text { color: var(--bone); }
+.directive__rule { color: var(--bone-faint); }
+
+/* Итог живой смены. */
+.complete--live .complete__eyebrow code {
+  font-family: var(--mono);
+  letter-spacing: 0.08em;
+  color: var(--bone-dim);
+}
+
+.complete__mark--rank-S { background: var(--jade-bright); }
+.complete__mark--rank-A { background: var(--jade); }
+.complete__mark--rank-B { background: var(--rank-d); }
+.complete__mark--rank-C { background: var(--amber); }
+.complete__mark--rank-D { background: var(--crimson); }
+
+.complete__section {
+  margin: var(--s6) 0 var(--s3);
+  font-family: var(--display);
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  color: var(--bone);
+}
+
+.complete__copied {
+  margin: var(--s3) 0 0;
+  min-height: 1.4em;
+  font-size: 13px;
+  color: var(--jade);
+  overflow-wrap: anywhere;
+}
+
+/* Ранг смены: буква, слово и число рядом — ни один знак не единственный. */
+.verdict {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  margin: var(--s4) 0 0;
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--line);
+  background: var(--ink-800);
+}
+
+.verdict__rank {
+  font-family: var(--display);
+  font-size: 44px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--bone);
+}
+
+.verdict__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
+
+.verdict__label {
+  font-family: var(--display);
+  font-size: 17px;
+  color: var(--bone);
+}
+
+.verdict__score {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--bone-dim);
+}
+
+.verdict--S { border-left: 3px solid var(--jade-bright); }
+.verdict--A { border-left: 3px solid var(--jade); }
+.verdict--B { border-left: 3px solid var(--rank-d); }
+.verdict--C { border-left: 3px solid var(--amber); }
+.verdict--D { border-left: 3px solid var(--crimson); }
+
+.verdict--S .verdict__rank { color: var(--jade-bright); }
+.verdict--A .verdict__rank { color: var(--jade); }
+.verdict--B .verdict__rank { color: var(--rank-d); }
+.verdict--C .verdict__rank { color: var(--amber); }
+.verdict--D .verdict__rank { color: var(--crimson); }
+
+/* Шкала рангов смены. Свой набор классов: здесь S — лучшее, а не худшее,
+   и общий цвет со шкалой риска сказал бы обратное. */
+.scale__step--live-S .scale__rank { color: var(--jade-bright); }
+.scale__step--live-A .scale__rank { color: var(--jade); }
+.scale__step--live-B .scale__rank { color: var(--rank-d); }
+.scale__step--live-C .scale__rank { color: var(--amber); }
+.scale__step--live-D .scale__rank { color: var(--crimson); }
+
+/* Разбор счёта по блокам. */
+.tally-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.tally-list__row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  padding: var(--s3) 0 0;
+  border-top: 1px solid var(--line-soft);
+}
+
+.tally-list__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s2);
+}
+
+.tally-list__title {
+  font-family: var(--display);
+  font-size: 14px;
+  color: var(--bone);
+}
+
+.tally-list__points {
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--bone);
+}
+
+.tally-list__max {
+  color: var(--bone-faint);
+  font-size: 12px;
+}
+
+.tally-list__bar {
+  display: block;
+  height: 3px;
+  background: var(--ink-700);
+}
+
+.tally-list__fill {
+  display: block;
+  height: 100%;
+  background: var(--jade);
+}
+
+.tally-list__why {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--bone-dim);
+}
+
+/* Хроника решений. Нейтральная по тону: это разбор, а не оценка. */
+.debrief {
+  list-style: none;
+  margin: var(--s3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.debrief__row {
+  display: flex;
+  gap: var(--s3);
+  padding-left: var(--s3);
+  border-left: 2px solid var(--line);
+}
+
+.debrief__row--same { border-left-color: var(--jade-line); }
+.debrief__row--different { border-left-color: var(--amber-line); }
+
+.debrief__cycle {
+  flex: none;
+  min-width: 68px;
+  padding-top: 2px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--bone-faint);
+}
+
+.debrief__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  min-width: 0;
+}
+
+.debrief__portal {
+  font-family: var(--display);
+  font-size: 14px;
+  color: var(--bone);
+}
+
+.debrief__action {
+  font-size: 13px;
+  color: var(--bone);
+}
+
+.debrief__note { color: var(--bone-faint); }
+
+.debrief__advice,
+.debrief__outcome {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--bone-dim);
+}
+
+.debrief__outcome {
+  font-family: var(--mono);
+  color: var(--bone-faint);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 560px) {
+  .directive { flex-direction: column; gap: var(--s1); }
+  .debrief__row { flex-direction: column; gap: var(--s1); }
+  .debrief__cycle { min-width: 0; }
+  .verdict { gap: var(--s3); }
+  .verdict__rank { font-size: 34px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
