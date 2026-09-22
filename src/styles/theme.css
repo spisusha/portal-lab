@@ -488,7 +488,17 @@ input {
 .deck {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
+  /*
+    Полоса цели и директива стоят первой строкой сетки, а не падают в
+    неявный ряд под остальным. До версии 1.1 у .shift-progress была только
+    grid-column, поэтому автоматическое размещение уносило её под архив:
+    в разметке цель стояла первой, а на экране оказывалась последней.
+    Заметно это стало, когда рядом с прогрессом появилась директива, —
+    задачу смены человек обязан видеть до решений, а не после.
+  */
   grid-template-areas:
+    'goal   goal'
+    'orders orders'
     'camera rail'
     'bench  rail'
     'archive archive';
@@ -2141,6 +2151,8 @@ input {
   .deck {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
+      'goal'
+      'orders'
       'camera'
       'bench'
       'rail'
@@ -2349,7 +2361,7 @@ input {
 /* ======================= Цикл и финал смены ============================ */
 
 .shift-progress {
-  grid-column: 1 / -1;
+  grid-area: goal;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -2622,6 +2634,10 @@ input {
   line-height: 1.55;
   color: var(--bone-dim);
 }
+
+/* Директива живёт своей строкой сразу под целью смены — она вторая
+   задача, а не вторая цель, и отдельной панели ей не положено. */
+.deck > .directive { grid-area: orders; }
 
 .directive--pending { border-left-color: var(--amber); }
 .directive--met { border-left-color: var(--jade); }

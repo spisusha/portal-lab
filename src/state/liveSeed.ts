@@ -87,6 +87,25 @@ export function shiftUrlFor(seed: string): string {
 }
 
 /**
+ * Сколько ждать ответа от буфера обмена, прежде чем считать попытку неудачной.
+ *
+ * Обнаружено при прогоне в браузере: `writeText` не всегда отклоняется —
+ * в ожидании разрешения он может просто не завершиться никогда. Без этого
+ * ограничения кнопка «Поделиться» молчала бы, и человек не понимал бы,
+ * скопировалось что-нибудь или нет.
+ */
+const CLIPBOARD_TIMEOUT = 1500
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error('clipboard timeout')), ms),
+    ),
+  ])
+}
+
+/**
  * Копирование ссылки.
  *
  * Современный API доступен не везде: в небезопасном контексте
@@ -97,11 +116,11 @@ export function shiftUrlFor(seed: string): string {
 export async function copyToClipboard(text: string): Promise<boolean> {
   try {
     if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text)
+      await withTimeout(navigator.clipboard.writeText(text), CLIPBOARD_TIMEOUT)
       return true
     }
   } catch {
-    // Падаем на запасной путь ниже.
+    // Отказ, отсутствие разрешения или молчание — падаем на запасной путь.
   }
 
   try {

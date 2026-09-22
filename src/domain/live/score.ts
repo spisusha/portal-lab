@@ -19,6 +19,7 @@
 
 import type { LabState, Portal } from '../types'
 import { isActive } from '../types'
+import { plural } from '../plural'
 import { scienceFactorOf } from './worlds'
 import { evaluateDirective, type DirectiveResult } from './directives'
 
@@ -182,7 +183,7 @@ export function computeLiveScore(state: LabState): LiveScore | null {
       explanation:
         creatures === 0
           ? 'Существ в порталах не было — терять было некого, блок засчитан полностью.'
-          : `Спасено ${saved} существ из ${creatures}; потеряно ${lost}.`,
+          : `Спасено ${saved} ${plural(saved, 'существо', 'существа', 'существ')} из ${creatures}; потеряно ${lost}.`,
     },
     {
       key: 'integrity',
@@ -199,7 +200,7 @@ export function computeLiveScore(state: LabState): LiveScore | null {
       title: 'Научные данные',
       points: sciencePoints,
       max: 20,
-      explanation: `Собрано ${science} единиц данных из ${SCIENCE_TARGET} возможных за смену.`,
+      explanation: `Собрано ${science} ${plural(science, 'единица', 'единицы', 'единиц')} данных из ${SCIENCE_TARGET} возможных за смену.`,
     },
     {
       key: 'directive',
@@ -238,8 +239,14 @@ function headlineFor(
     const held = portals.filter(isActive).length
     return `Ни одного схлопывания и ни одного потерянного существа; открытыми осталось порталов: ${held}.`
   }
-  const weakest = [...parts].sort(
-    (a, b) => a.points / a.max - b.points / b.max,
-  )[0]
-  return `Больше всего очков потеряно в блоке «${weakest.title.toLowerCase()}»: ${weakest.points} из ${weakest.max}.`
+  // Именно «больше всего очков», а не «хуже всего доля»: раньше здесь
+  // сравнивались доли, и блок директивы (0 из 10) объявлялся главной
+  // потерей, хотя безопасность существ теряла вдвое больше очков.
+  // Фраза и расчёт разошлись; побеждает фраза.
+  const missing = (part: ScorePart) => part.max - part.points
+  const weakest = [...parts].sort((a, b) => {
+    if (missing(b) !== missing(a)) return missing(b) - missing(a)
+    return a.points / a.max - b.points / b.max
+  })[0]
+  return `Больше всего очков потеряно в блоке «${weakest.title.toLowerCase()}»: ${missing(weakest)} из ${weakest.max}.`
 }

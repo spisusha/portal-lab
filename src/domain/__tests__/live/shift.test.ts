@@ -139,6 +139,41 @@ describe('итоговый счёт', () => {
     expect(held).toHaveLength(state.portals.filter(isActive).length)
   })
 
+  it('называет блок, где потеряно больше всего очков, а не худшую долю', () => {
+    // Найдено при прогоне в браузере: фраза говорила «больше всего очков»,
+    // а сортировка шла по долям, и блок директивы (−10) объявлялся главной
+    // потерей вперёд безопасности существ (−20).
+    const score = computeLiveScore(runToEnd('PL-LAB2'))!
+    const worst = [...score.parts].sort(
+      (a, b) => b.max - b.points - (a.max - a.points),
+    )[0]
+    expect(score.headline).toContain(worst.title.toLowerCase())
+    expect(score.headline).toContain(`${worst.max - worst.points} из ${worst.max}`)
+  })
+
+  it('склоняет существ в объяснении, а не пишет «спасено 1 существ»', () => {
+    // Найдено глазами при прогоне в браузере: объяснение собирает домен,
+    // а числительные жили только в ui/plural.ts — и в итог попадало
+    // «Спасено 1 существ из 5».
+    const base = createLiveShift('PL-7K42')
+    const safetyText = (creatures: number) => {
+      const state = {
+        ...base,
+        portals: base.portals.map((portal, index) => ({
+          ...portal,
+          creaturesInside: index === 0 ? creatures : 0,
+          creaturesLost: 0,
+        })),
+      }
+      const score = computeLiveScore(state)!
+      return score.parts.find((part) => part.key === 'safety')!.explanation
+    }
+
+    expect(safetyText(1)).toContain('Спасено 1 существо из 1')
+    expect(safetyText(2)).toContain('Спасено 2 существа из 2')
+    expect(safetyText(4)).toContain('Спасено 4 существа из 4')
+  })
+
   it('для демонстрационных сценариев счёта нет — там словесный итог', () => {
     expect(computeLiveScore(createScenario('standard'))).toBeNull()
     expect(buildShiftSummary(createScenario('standard')).outcome).toBeTruthy()

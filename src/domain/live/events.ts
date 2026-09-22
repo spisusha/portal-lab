@@ -20,6 +20,7 @@
 import type { Portal } from '../types'
 import { isActive } from '../types'
 import type { Random } from './prng'
+import { plural } from '../plural'
 
 export type ShiftEventKind =
   | 'ENERGY_SURGE'
@@ -328,7 +329,7 @@ export function applyEvent(
       return {
         portals: next,
         notes: [
-          `Миграция существ: ${moved} из «${from.name}» перешли в «${to.name}». Общее число существ не изменилось.`,
+          `Миграция существ: ${moved} ${plural(moved, 'существо', 'существа', 'существ')} из «${from.name}» ${plural(moved, 'перешло', 'перешли', 'перешли')} в «${to.name}». Общее число существ не изменилось.`,
         ],
       }
     }
