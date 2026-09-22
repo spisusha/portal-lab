@@ -186,6 +186,7 @@ input {
 
 /* Числа не должны прыгать при пересчёте цикла. */
 .topbar__clock-value,
+.livetime__value,
 .gauge__rank,
 .gauge__score,
 .vital__value,
@@ -215,6 +216,7 @@ input {
   grid-template-columns: minmax(0, 1fr) auto auto;
   grid-template-areas:
     'identity state tools'
+    'identity state mode'
     'deck     deck  deck';
   gap: var(--s3) var(--s5);
   align-items: center;
@@ -354,7 +356,16 @@ input {
   display: flex;
   gap: var(--s2);
   align-items: center;
+  justify-content: flex-end;
   flex-wrap: wrap;
+}
+
+.picker optgroup {
+  background: var(--ink-800);
+  color: var(--bone-faint);
+  font-style: normal;
+  font-size: 12px;
+  letter-spacing: 0.04em;
 }
 
 .picker {
@@ -2048,6 +2059,59 @@ input {
   font-size: 14px;
 }
 
+/* Перечисление внутри раскрытого блока: без линеек, иначе подробности
+   выглядят важнее самого этапа. */
+.facts--plain li {
+  padding: 2px 0;
+  border-bottom: 0;
+  font-size: 14.5px;
+}
+
+/* Две колонки ответственности: кто что делал — читается парой, а не
+   двумя списками подряд. */
+.worklog__split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s5);
+}
+
+.worklog__subtitle {
+  margin: 0 0 var(--s2);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--bone);
+}
+
+.prompts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s3);
+}
+
+.prompts .stage__prompt {
+  margin: 0;
+}
+
+.worklog__code {
+  margin: 0 0 var(--s3);
+  padding: var(--s3);
+  border: 1px solid var(--line);
+  background: var(--ink-850);
+  overflow-x: auto;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.worklog__code code {
+  background: transparent;
+  padding: 0;
+  color: var(--bone-dim);
+  white-space: pre;
+}
+
 .stages {
   list-style: none;
   margin: 0;
@@ -2171,12 +2235,20 @@ input {
       'identity'
       'state'
       'tools'
+      'mode'
       'deck';
     align-items: start;
   }
 
+
   .topbar__state {
     flex-wrap: wrap;
+  }
+
+  /* В одну колонку переключатель и подсказка разъезжаются по краям строки,
+     иначе слева остаётся широкая пустота. */
+  .topbar__tools {
+    justify-content: space-between;
   }
 
   .worklog {
@@ -2248,6 +2320,7 @@ input {
     gap: var(--s2);
   }
 
+
   .topbar__deck {
     align-items: stretch;
   }
@@ -2260,6 +2333,11 @@ input {
   .spec > div {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--s1);
+  }
+
+  .worklog__split {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s4);
   }
 }
 
@@ -2284,6 +2362,7 @@ input {
   .topbar__tools .btn {
     width: 100%;
   }
+
 
   .picker {
     justify-content: space-between;
@@ -2522,26 +2601,263 @@ input {
    слово и число.
    ------------------------------------------------------------------ */
 
-/* Код смены: служебная подпись, не соперник рангу и кнопкам. */
-.seedtag {
-  display: flex;
-  align-items: baseline;
-  gap: var(--s2);
-  margin: var(--s2) 0 0;
-  font-size: 12px;
+/* ------------------------------------------------------------------
+   Карточка режима под переключателем.
+
+   Задача — за несколько секунд объяснить, где человек находится. Поэтому
+   блок узкий, в три строки и с кромкой слева: учебный сценарий — костяная,
+   живая смена — нефритовая. Он не имеет права разрастаться: половина
+   первого экрана принадлежит порталу, а не объяснению.
+   ------------------------------------------------------------------ */
+.modecard {
+  grid-area: mode;
+  justify-self: end;
+  width: 100%;
+  max-width: 380px;
+  margin-top: var(--s2);
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--bone-faint);
+  background: var(--ink-800);
+}
+
+.modecard--live {
+  border-left-color: var(--jade);
+  background: linear-gradient(90deg, var(--jade-wash), var(--ink-800) 70%);
+}
+
+.modecard__label {
+  margin: 0;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: var(--bone-faint);
 }
 
-.seedtag__label {
-  letter-spacing: 0.02em;
+.modecard--live .modecard__label {
+  color: var(--jade);
 }
 
-.seedtag__value {
+.modecard__title {
+  margin: 2px 0 0;
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.modecard__seed {
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: 14px;
   letter-spacing: 0.08em;
+  color: var(--jade);
+}
+
+.modecard__text {
+  margin: var(--s1) 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
   color: var(--bone-dim);
-  border-bottom: 1px dotted var(--line);
+}
+
+.modecard__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  margin-top: var(--s2);
+}
+
+.modecard__action {
+  margin-top: var(--s2);
+}
+
+.modecard__controls .modecard__action {
+  margin-top: 0;
+}
+
+.modecard__timer {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+  flex: 1 1 150px;
+  font-size: 12.5px;
+  color: var(--bone-dim);
+}
+
+/* Состояние таймера читается не только цветом точки, но и текстом рядом. */
+.modecard__timer-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border: 1px solid var(--bone-faint);
+  border-radius: 50%;
+}
+
+.modecard__timer--on {
+  color: var(--bone);
+}
+
+.modecard__timer--on .modecard__timer-dot {
+  border-color: var(--jade);
+  background: var(--jade);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* ------------------------------------------------------------------
+   Отсчёт до следующего цикла.
+
+   Стоит на месте кнопки «Следующий цикл» и рядом с прогнозом: решение
+   пропустить остаток цикла принимают, прочитав, что после перехода
+   случится.
+   ------------------------------------------------------------------ */
+.livetime {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex: none;
+}
+
+.livetime--idle {
+  margin: 0;
+  max-width: 34ch;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--bone-faint);
+}
+
+.livetime__count {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  line-height: 1.15;
+}
+
+.livetime__label {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--bone-faint);
+}
+
+.livetime__value {
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--jade);
+  /* Табличные цифры: секунда меняется раз в секунду и не должна
+     подталкивать соседние элементы. */
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+.livetime__count--held .livetime__value {
+  color: var(--bone-faint);
+}
+
+.livetime__skip {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.livetime__hint {
+  font-size: 11px;
+  color: var(--bone-faint);
+  text-align: center;
+}
+
+/* Адаптив живой смены стоит после базовых правил, а не в общем блоке
+   «Адаптив» выше: там он оказался бы раньше по файлу и при одинаковой
+   специфичности проигрывал бы базовому описанию. Ошибка нашлась на
+   ширине 768 — карточка режима не растягивалась. */
+@media (max-width: 1000px) {
+  .modecard {
+    justify-self: stretch;
+    max-width: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .livetime {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--s2);
+  }
+
+  .livetime .btn {
+    width: 100%;
+  }
+
+  .livetime--idle {
+    max-width: none;
+  }
+}
+
+/* Разбор формулы на узком экране.
+
+   Колонка с арифметикой стоит `white-space: nowrap`, чтобы формула не
+   рвалась посреди умножения. На 360 px три колонки в неё не помещались, и
+   «0.35 × 75 = 26.3» обрезалось по краю ячейки. Видно это только глазами:
+   таблица шире своей колонки, а страница — нет, поэтому ни тесты, ни
+   измерение переполнения документа ошибку не ловят.
+
+   Разрешать перенос бессмысленно — формула распадалась на четыре огрызка.
+   Поэтому на телефоне строка таблицы разворачивается в три строки:
+   название, объяснение, арифметика. Заголовка у таблицы нет, так что
+   порядок читается сам собой. */
+@media (max-width: 560px) {
+  .ledger,
+  .ledger tbody,
+  .ledger tfoot,
+  .ledger tr,
+  .ledger th,
+  .ledger td {
+    display: block;
+  }
+
+  .ledger tr {
+    padding: var(--s2) 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+
+  .ledger th,
+  .ledger td {
+    padding: 0;
+    border-bottom: 0;
+  }
+
+  .ledger__why {
+    margin-top: 2px;
+  }
+
+  .ledger__math {
+    margin-top: var(--s1);
+    text-align: left;
+  }
+}
+
+@media (max-width: 560px) {
+  .modecard__controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  /* В колонке растягиваться нечему: без этого строка состояния тянулась
+     на всю свободную высоту и отрывала кнопку паузы от текста. */
+  .modecard__timer {
+    flex: none;
+  }
+
+  .modecard__controls .btn,
+  .modecard__action {
+    width: 100%;
+  }
 }
 
 /* Событие следующего перехода — внутри существующего блока прогноза. */

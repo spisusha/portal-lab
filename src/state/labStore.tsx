@@ -45,10 +45,17 @@ interface Tracked {
   step: number
   /** Действие, которое привело к текущему состоянию. */
   lastAction: LabAction['type'] | null
+  /** Номер смены: растёт каждый раз, когда смена начинается заново. */
+  shift: number
 }
 
 function trackingReducer(tracked: Tracked, action: LabAction): Tracked {
   const next = labReducer(tracked.state, action)
+  // Смена действительно началась заново, только если сценарий загрузился,
+  // а не упёрся в вопрос «сбросить прогресс?». Повтор той же живой смены
+  // тоже считается новой сменой: seed прежний, а время и таймер — нет.
+  const restarted =
+    action.type === 'LOAD_SCENARIO' && next !== tracked.state && next.pendingConfirm === null
   return {
     state: next,
     // Перезапуск/смена сценария создаёт новую смену, а не превращает
@@ -56,6 +63,7 @@ function trackingReducer(tracked: Tracked, action: LabAction): Tracked {
     previous: action.type === 'LOAD_SCENARIO' ? null : tracked.state,
     step: tracked.step + 1,
     lastAction: action.type,
+    shift: restarted ? tracked.shift + 1 : tracked.shift,
   }
 }
 
@@ -81,6 +89,12 @@ interface LabContextValue {
   lastAction: LabAction['type'] | null
   /** Итог живой смены: счёт, ранг и разбор по блокам. `null` — демо-режим. */
   liveScore: LiveScore | null
+  /**
+   * Номер начатой смены. Меняется только при загрузке сценария и служит
+   * ключом для всего, что обязано начаться заново, — в первую очередь
+   * для таймера живой смены.
+   */
+  shiftKey: number
   /** Директива смены и её текущее состояние. `null` — демо-режим. */
   directive: DirectiveResult | null
   /** Хроника принятых решений. Пуста вне живой смены. */
@@ -109,6 +123,7 @@ export function LabProvider({ children }: { children: ReactNode }) {
     previous: null,
     step: 0,
     lastAction: null,
+    shift: 0,
   }))
 
   const seedInUrl = tracked.state.scenario === 'live' ? tracked.state.live?.seed ?? null : null
@@ -120,7 +135,7 @@ export function LabProvider({ children }: { children: ReactNode }) {
   }, [seedInUrl])
 
   const value = useMemo<LabContextValue>(() => {
-    const { state, previous, step, lastAction } = tracked
+    const { state, previous, step, lastAction, shift } = tracked
     const rows = buildDebrief(state)
     return {
       state,
@@ -136,6 +151,7 @@ export function LabProvider({ children }: { children: ReactNode }) {
       shiftSummary: buildShiftSummary(state),
       lastAction,
       liveScore: computeLiveScore(state),
+      shiftKey: shift,
       directive: state.live ? evaluateDirective(state.live.directive, state) : null,
       debrief: rows,
       debriefHeadline: debriefHeadline(rows),

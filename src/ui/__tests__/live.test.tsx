@@ -13,8 +13,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { App } from '../../App'
-import { LabProvider } from '../../state/labStore'
+import { AppRoot } from '../../AppRoot'
 import { ONBOARDING_STORAGE_KEY } from '../Onboarding'
 import { createLiveShift } from '../../domain/live/generator'
 
@@ -35,11 +34,7 @@ afterEach(() => {
 })
 
 function renderApp() {
-  return render(
-    <LabProvider>
-      <App />
-    </LabProvider>,
-  )
+  return render(<AppRoot />)
 }
 
 function openByLink(seed = SEED) {
@@ -47,13 +42,18 @@ function openByLink(seed = SEED) {
   return renderApp()
 }
 
-/** Перейти к следующему циклу, подтвердив нерешённые порталы. */
+/**
+ * Перейти к следующему циклу.
+ *
+ * В живой смене время идёт само, поэтому кнопки «Следующий цикл» здесь нет:
+ * тот же доменный переход запускает «Завершить цикл сейчас». Ждать
+ * настоящую минуту в этих тестах незачем — отсчёт проверяется отдельно,
+ * в `liveClock.test.tsx`.
+ */
 async function advance(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: /Следующий цикл/ }))
-  const dialog = screen.queryByRole('alertdialog')
-  if (dialog) {
-    await user.click(within(dialog).getByRole('button', { name: /перейти к циклу/ }))
-  }
+  const start = screen.queryByRole('button', { name: 'Начать живую смену' })
+  if (start) await user.click(start)
+  await user.click(screen.getByRole('button', { name: 'Завершить цикл сейчас' }))
 }
 
 describe('запуск живой смены', () => {
@@ -100,6 +100,86 @@ describe('запуск живой смены', () => {
     await user.selectOptions(screen.getByLabelText('Режим смены'), 'standard')
     expect(window.location.search).toBe('')
     expect(screen.getByRole('button', { name: /Врата №19 — Полая звезда/ })).toBeTruthy()
+  })
+})
+
+describe('режимы разведены по смыслу', () => {
+  it('список разделён на учебные сценарии и основной режим', () => {
+    renderApp()
+    const picker = screen.getByLabelText('Режим смены') as HTMLSelectElement
+    const groups = [...picker.querySelectorAll('optgroup')]
+
+    expect(groups.map((group) => group.label)).toEqual([
+      'Учебные сценарии',
+      'Основной режим',
+    ])
+    expect([...groups[0].children].map((option) => option.textContent)).toEqual([
+      'Штатный режим',
+      'Критическая ситуация',
+      'Пустая лаборатория',
+    ])
+    expect([...groups[1].children].map((option) => option.textContent)).toEqual([
+      'Живая смена',
+    ])
+  })
+
+  it('под переключателем объясняет выбранный сценарий и меняется вместе с ним', async () => {
+    const user = userEvent.setup()
+    renderApp()
+
+    const standard = screen.getByRole('region', {
+      name: 'Выбранный режим: Штатный режим',
+    })
+    expect(within(standard).getByText('Учебный сценарий')).toBeTruthy()
+    expect(
+      within(standard).getByText(/Подготовленная тренировочная смена/),
+    ).toBeTruthy()
+    expect(
+      within(standard).getByRole('button', { name: 'Перейти в живую смену' }),
+    ).toBeTruthy()
+
+    await user.selectOptions(screen.getByLabelText('Режим смены'), 'critical')
+    const critical = screen.getByRole('region', {
+      name: 'Выбранный режим: Критическая ситуация',
+    })
+    // Критическая ситуация — заготовленный пример, а не отдельная сложность.
+    expect(within(critical).getByText('Учебный сценарий')).toBeTruthy()
+    expect(
+      within(critical).getByText(/Подготовленный аварийный сценарий/),
+    ).toBeTruthy()
+
+    await user.selectOptions(screen.getByLabelText('Режим смены'), 'empty')
+    expect(
+      screen.getByText(/Демонстрация завершённого состояния/),
+    ).toBeTruthy()
+  })
+
+  it('кнопка «Перейти в живую смену» уводит из учебного сценария', async () => {
+    const user = userEvent.setup()
+    renderApp()
+
+    await user.click(screen.getByRole('button', { name: 'Перейти в живую смену' }))
+
+    const live = screen.getByRole('region', { name: /Выбранный режим: Уникальная смена/ })
+    expect(within(live).getByText('Живая смена')).toBeTruthy()
+    expect(within(live).getByText(/сформированы по коду смены/)).toBeTruthy()
+    expect(
+      within(live).getByRole('button', { name: 'Начать живую смену' }),
+    ).toBeTruthy()
+    expect(window.location.search).toMatch(/^\?mode=live&seed=PL-/)
+  })
+
+  it('живая смена подписана кодом, а учебные сценарии кнопкой цикла', async () => {
+    const user = userEvent.setup()
+    openByLink()
+
+    const live = screen.getByRole('region', { name: /Выбранный режим: Уникальная смена/ })
+    expect(within(live).getByText(SEED)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Следующий цикл/ })).toBeNull()
+
+    await user.selectOptions(screen.getByLabelText('Режим смены'), 'standard')
+    expect(screen.getByRole('button', { name: /Следующий цикл · \+15 мин/ })).toBeTruthy()
+    expect(screen.queryByText(/Смена ещё не началась/)).toBeNull()
   })
 })
 

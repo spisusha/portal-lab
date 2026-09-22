@@ -3,32 +3,41 @@ import { useLab } from '../state/labStore'
 import { SCENARIO_TITLES } from '../domain/reducer'
 import { CYCLE_MINUTES, currentCycle, formatClock, isActive, type ScenarioId } from '../domain/types'
 import { createSeedCode } from '../state/liveSeed'
+import { useLiveClock } from '../state/liveClock'
+import { ModeCard } from './ModeCard'
 import { counted, plural } from './plural'
 
 /**
- * Порядок режимов: сначала три детерминированных набора, которыми проверяют
- * обязательные состояния задания, и только потом переигрываемая смена.
- * Живая смена стоит последней намеренно — она не должна открываться первой
- * у человека, который пришёл проверять работу.
+ * Режимы разведены по группам прямо в списке.
+ *
+ * Три подготовленных набора — учебные: по ним проверяют обязательные
+ * состояния задания, и время в них двигают рукой. Живая смена — основной
+ * переигрываемый режим, и стоит она отдельно, а не четвёртым уровнем
+ * сложности. Группировка сделана штатным `optgroup`: собственный список
+ * пришлось бы заново учить работе с клавиатуры и на телефоне.
  */
-const SCENARIOS: ScenarioId[] = ['standard', 'critical', 'empty', 'live']
+const SCENARIO_GROUPS: { label: string; items: ScenarioId[] }[] = [
+  { label: 'Учебные сценарии', items: ['standard', 'critical', 'empty'] },
+  { label: 'Основной режим', items: ['live'] },
+]
 
 const SCENARIO_HINTS: Record<ScenarioId, string> = {
-  standard: 'Обычная смена: ранги от E до A',
-  critical: 'Есть портал ранга S и портал, который схлопнется за один цикл',
-  empty: 'Пустой список порталов',
-  live: 'Новая смена по коду: свои порталы, особенности миров, события и директива',
+  standard: 'Учебный сценарий: обычная смена, ранги от E до A',
+  critical: 'Учебный сценарий: портал ранга S и портал, который схлопнется за один цикл',
+  empty: 'Учебный сценарий: активных порталов нет',
+  live: 'Основной режим: смена по коду — свои порталы, особенности миров, события и директива',
 }
 
 export type Tab = 'lab' | 'worklog'
 
 /**
  * Верхняя панель поста: кто здесь работает, сколько времени, что горит,
- * какие данные загружены и как двинуть время.
+ * какой режим выбран и как двинуть время.
  *
- * Переключатель наборов называется «Демо-сценарий», а не «Смена»: раньше
- * подпись читалась как часть игры, и было неясно, что это инструмент
- * проверяющего, а не действие смотрителя.
+ * Время двигается по-разному, и это видно на месте. В учебных сценариях
+ * остаётся кнопка «Следующий цикл»: проверяющий сам выбирает момент.
+ * В живой смене на её месте отсчёт до перехода и «Завершить цикл сейчас» —
+ * ту же доменную команду, что и кнопка, отправляет таймер.
  *
  * Кнопка цикла ненадолго блокируется после нажатия. Это не имитация
  * загрузки — сетевых запросов здесь нет. Блокировка защищает от двойного
@@ -44,6 +53,7 @@ export function TopBar({
   onShowIntro: () => void
 }) {
   const { state, summary, forecast, dispatch } = useLab()
+  const clock = useLiveClock()
   const [advancing, setAdvancing] = useState(false)
   const timer = useRef<number | undefined>(undefined)
   const advancingRef = useRef(false)
@@ -82,13 +92,16 @@ export function TopBar({
       </div>
 
       <div className="topbar__state">
+        {/* Минуты внутри цикла прибавляются только к показанию: в состоянии
+            `clockMinutes` меняется ровно на переходе, иначе «одно решение
+            за цикл» начало бы срабатывать посреди цикла. */}
         <p
           className="topbar__clock"
-          aria-label={`Смена ${formatClock(state.clockMinutes)}`}
+          aria-label={`Смена ${formatClock(state.clockMinutes + clock.elapsedMinutes)}`}
         >
           <span className="topbar__clock-label">Смена</span>
           <span className="topbar__clock-value">
-            {formatClock(state.clockMinutes)}
+            {formatClock(state.clockMinutes + clock.elapsedMinutes)}
           </span>
         </p>
 
@@ -117,28 +130,25 @@ export function TopBar({
               })
             }}
           >
-            {SCENARIOS.map((scenario) => (
-              <option key={scenario} value={scenario}>
-                {SCENARIO_TITLES[scenario]}
-              </option>
+            {SCENARIO_GROUPS.map((group) => (
+              <optgroup key={group.label} label={group.label}>
+                {group.items.map((scenario) => (
+                  <option key={scenario} value={scenario}>
+                    {SCENARIO_TITLES[scenario]}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </label>
-
-        {/* Код смены — служебная подпись. Он не должен спорить за внимание
-            с рангом портала и кнопками решений, поэтому стоит под
-            переключателем мелким шрифтом. */}
-        {state.live && (
-          <p className="seedtag">
-            <span className="seedtag__label">Код смены</span>
-            <code className="seedtag__value">{state.live.seed}</code>
-          </p>
-        )}
 
         <button type="button" className="btn btn--ghost" onClick={onShowIntro}>
           Как это работает
         </button>
       </div>
+
+      {/* Объяснение режима стоит там же, где выбор, и меняется вместе с ним. */}
+      <ModeCard />
 
       <div className="topbar__deck">
         <nav className="tabs" aria-label="Разделы">
@@ -177,19 +187,68 @@ export function TopBar({
                 {forecast.eventText}
               </p>
             )}
-            <button
-              type="button"
-              className="btn btn--primary"
-              onClick={nextCycle}
-              disabled={advancing}
-              aria-busy={advancing}
-            >
-              {advancing ? 'Цикл идёт…' : `Следующий цикл · +${CYCLE_MINUTES} мин`}
-            </button>
+            {clock.available ? (
+              <LiveTime />
+            ) : (
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={nextCycle}
+                disabled={advancing}
+                aria-busy={advancing}
+              >
+                {advancing ? 'Цикл идёт…' : `Следующий цикл · +${CYCLE_MINUTES} мин`}
+              </button>
+            )}
           </div>
         )}
       </div>
     </header>
+  )
+}
+
+/**
+ * Отсчёт до перехода и досрочное завершение цикла.
+ *
+ * Стоит вплотную к прогнозу не для красоты: «Завершить цикл сейчас»
+ * пропускает остаток времени, и решение об этом принимают, прочитав, что
+ * случится после перехода. Переход запускается той же командой, что и
+ * кнопка учебного режима, — второй реализации расчёта нет.
+ */
+function LiveTime() {
+  const clock = useLiveClock()
+
+  if (!clock.started) {
+    return (
+      <p className="livetime livetime--idle">
+        Смена ещё не началась. Изучите порталы и запустите таймер, когда будете
+        готовы.
+      </p>
+    )
+  }
+
+  return (
+    <div className="livetime">
+      <p className={`livetime__count${clock.running ? '' : ' livetime__count--held'}`}>
+        <span className="livetime__label">До следующего цикла</span>
+        <span className="livetime__value">{clock.countdown}</span>
+      </p>
+      <span className="livetime__skip">
+        <button
+          type="button"
+          className="btn"
+          onClick={clock.finishNow}
+          aria-describedby="livetime-hint"
+        >
+          Завершить цикл сейчас
+        </button>
+        {/* Предупреждение стоит до нажатия, а не после: пропуск остатка
+            цикла — такое же необратимое решение, как и все остальные. */}
+        <span className="livetime__hint" id="livetime-hint">
+          остаток цикла будет пропущен
+        </span>
+      </span>
+    </div>
   )
 }
 

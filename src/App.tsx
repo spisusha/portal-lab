@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { useLab } from './state/labStore'
+import { useClockBlock } from './state/liveClock'
 import { TopBar, type Tab } from './ui/TopBar'
 import { PortalCamera } from './ui/PortalCamera'
 import { DecisionBench } from './ui/DecisionBench'
@@ -34,6 +35,14 @@ export function App() {
   const [manualId, setManualId] = useState<string | null>(null)
   const [showFinalLog, setShowFinalLog] = useState(false)
   const intro = useOnboarding()
+
+  // Время живой смены не идёт, пока человек читает. Порталы не имеют права
+  // схлопываться за спиной у того, кто открыл инструкцию или ушёл в отчёт.
+  useClockBlock('intro', intro.open ? 'Таймер приостановлен, пока открыта инструкция.' : null)
+  useClockBlock(
+    'worklog',
+    tab === 'worklog' ? 'Таймер приостановлен, пока открыт AI Worklog.' : null,
+  )
 
   // Если выбранный портал исчез при смене сценария, показываем самый
   // опасный из активных — камера не должна оставаться пустой.

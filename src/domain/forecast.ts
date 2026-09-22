@@ -12,6 +12,7 @@
 import type { LabState, Portal, RiskRank } from './types'
 import { CYCLE_MINUTES, isActive } from './types'
 import { computeRisk } from './risk'
+import { counted } from './plural'
 import { simulateCycle } from './simulate'
 import type { ShiftEvent } from './live/events'
 
@@ -94,6 +95,14 @@ export function buildForecast(state: LabState): CycleForecast {
   }
 }
 
+/**
+ * Одна фраза прогноза.
+ *
+ * Пишется так, как её сказал бы дежурный по лаборатории: полным
+ * предложением и с числительными в нужной форме. Прежняя версия начиналась
+ * с «Никто не схлопнется» — это читалось как ответ на незаданный вопрос,
+ * а «сильнее всех просядет» вообще не про состояние портала.
+ */
 function headlineFor(
   outlooks: PortalOutlook[],
   collapsing: PortalOutlook[],
@@ -107,19 +116,24 @@ function headlineFor(
     const one = collapsing[0]
     const tail =
       one.creaturesLost > 0
-        ? ` Внутри останется существ: ${one.creaturesLost}.`
+        ? ` Внутри останется ${counted(one.creaturesLost, 'существо', 'существа', 'существ')}.`
         : ''
     return `Через ${CYCLE_MINUTES} мин схлопнется «${one.portal.name}».${tail}`
   }
 
   if (collapsing.length > 1) {
     const names = collapsing.map((item) => `«${item.portal.name}»`).join(', ')
-    return `Через ${CYCLE_MINUTES} мин схлопнется порталов: ${collapsing.length} — ${names}.`
+    const lost = collapsing.reduce((sum, item) => sum + item.creaturesLost, 0)
+    const tail =
+      lost > 0
+        ? ` Внутри останется ${counted(lost, 'существо', 'существа', 'существ')}.`
+        : ''
+    return `Через ${CYCLE_MINUTES} мин схлопнется ${counted(collapsing.length, 'портал', 'портала', 'порталов')}: ${names}.${tail}`
   }
 
   if (worst) {
-    return `Никто не схлопнется. Сильнее всех просядет «${worst.portal.name}»: риск ${worst.riskBefore} → ${worst.riskAfter}.`
+    return `В следующем цикле ни один портал не схлопнется. Сильнее всего ухудшится состояние «${worst.portal.name}»: риск ${worst.riskBefore} → ${worst.riskAfter}.`
   }
 
-  return `Через ${CYCLE_MINUTES} мин ничего не изменится: все порталы держатся.`
+  return `В следующем цикле ни один портал не схлопнется, и показатели не изменятся: все порталы держатся.`
 }
